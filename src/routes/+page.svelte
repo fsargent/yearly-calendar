@@ -12,6 +12,7 @@
 	const STORAGE_HIDE_BIRTHDAYS_KEY = 'yearPlanner:hideBirthdays:v1';
 	const STORAGE_EVENT_ROWS_KEY = 'yearPlanner:eventRowsPerMonth:v1';
 	const STORAGE_LAYOUT_MODE_KEY = 'yearPlanner:layoutMode:v1';
+	const STORAGE_THEME_MODE_KEY = 'yearPlanner:themeMode:v1';
 	const SESSION_AUTH_KEY = 'yearPlanner:authSession:v1';
 
 	const VITE_GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
@@ -29,6 +30,7 @@
 	let hideBirthdays = false;
 	let eventRowsPerMonth = 3;
 	let layoutMode: 'dates' | 'week' = 'dates';
+	let themeMode: 'system' | 'light' | 'dark' = 'system';
 	let syncing = false;
 
 	let allDayEventsRaw: PlannerAllDayEvent[] = [];
@@ -66,12 +68,24 @@
 		if (eventRowsPerMonth > 10) eventRowsPerMonth = 10;
 		const lm = loadJson<'dates' | 'week'>(STORAGE_LAYOUT_MODE_KEY, 'dates');
 		layoutMode = lm === 'week' ? 'week' : 'dates';
+		const tm = loadJson<'system' | 'light' | 'dark'>(STORAGE_THEME_MODE_KEY, 'system');
+		themeMode = tm === 'light' || tm === 'dark' ? tm : 'system';
 	}
 
 	function persistPrefs(): void {
 		saveJson<boolean>(STORAGE_HIDE_BIRTHDAYS_KEY, hideBirthdays);
 		saveJson<number>(STORAGE_EVENT_ROWS_KEY, eventRowsPerMonth);
 		saveJson<'dates' | 'week'>(STORAGE_LAYOUT_MODE_KEY, layoutMode);
+		saveJson<'system' | 'light' | 'dark'>(STORAGE_THEME_MODE_KEY, themeMode);
+	}
+
+	function applyTheme(): void {
+		const root = document.documentElement;
+		if (themeMode === 'system') {
+			delete (root.dataset as { theme?: string }).theme;
+		} else {
+			root.dataset.theme = themeMode;
+		}
 	}
 
 	function applyPrefs(events: PlannerAllDayEvent[]): PlannerAllDayEvent[] {
@@ -240,6 +254,7 @@
 	onMount(() => {
 		loadSelected();
 		loadPrefs();
+		applyTheme();
 
 		const sess = loadSession();
 		// If we have a token valid for at least 60s, reuse it and auto-load.
@@ -356,11 +371,14 @@
 		{hideBirthdays}
 		{eventRowsPerMonth}
 		{layoutMode}
+		{themeMode}
 		onChange={(next) => {
 			hideBirthdays = next.hideBirthdays;
 			eventRowsPerMonth = next.eventRowsPerMonth;
 			layoutMode = next.layoutMode;
+			themeMode = next.themeMode;
 			persistPrefs();
+			applyTheme();
 			// No refetch needed: apply settings to the last fetched events.
 			allDayEvents = applyPrefs(allDayEventsRaw);
 		}}
@@ -392,7 +410,7 @@
 	}
 	.sub {
 		margin: 2px 0 0;
-		color: #555;
+		color: var(--muted);
 		font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
 		font-size: 13px;
 	}
@@ -408,27 +426,30 @@
 		align-items: center;
 		font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
 		font-size: 13px;
-		color: #333;
+		color: var(--text);
 	}
 	.year input {
 		width: 92px;
 		padding: 6px 8px;
-		border: 1px solid #ccc;
+		border: 1px solid var(--border);
+		background: var(--panel);
+		color: var(--text);
 		border-radius: 6px;
 	}
 	button {
 		padding: 7px 10px;
 		border-radius: 8px;
-		border: 1px solid #111;
-		background: #111;
-		color: #fff;
+		border: 1px solid var(--btn-border);
+		background: var(--btn-bg);
+		color: var(--btn-text);
 		font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
 		font-size: 13px;
 		cursor: pointer;
 	}
 	button.secondary {
-		background: #fff;
-		color: #111;
+		background: var(--btn-secondary-bg);
+		color: var(--btn-secondary-text);
+		border: 1px solid var(--btn-secondary-border);
 	}
 	button:disabled {
 		opacity: 0.6;
@@ -447,7 +468,8 @@
 	.sidebar {
 		margin: 10px 0 12px;
 		padding: 10px 12px;
-		border: 1px solid #ddd;
+		border: 1px solid var(--border);
+		background: var(--panel);
 		border-radius: 12px;
 	}
 	.sidebar h2 {
@@ -457,7 +479,7 @@
 	}
 	.hint {
 		margin: 0 0 10px;
-		color: #555;
+		color: var(--muted);
 		font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
 		font-size: 12px;
 	}
@@ -486,8 +508,8 @@
 	.tag {
 		margin-left: auto;
 		font-size: 11px;
-		color: #444;
-		border: 1px solid #ddd;
+		color: var(--muted);
+		border: 1px solid var(--border);
 		padding: 2px 6px;
 		border-radius: 999px;
 	}

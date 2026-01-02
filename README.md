@@ -25,6 +25,18 @@ bun install
 bun run dev -- --open
 ```
 
+## Deploy (GitHub Pages)
+
+This repo is configured to deploy automatically via GitHub Actions to GitHub Pages.
+
+1. In your GitHub repo, go to **Settings → Pages**.
+2. Under **Build and deployment**, select **Source: GitHub Actions**.
+3. Add these OAuth settings in Google Cloud Console:
+   - **Authorized JavaScript origins**: `https://<your-user>.github.io`
+   - **Redirect/origin**: for project pages, also include `https://<your-user>.github.io/<repo>`
+
+The workflow builds with `BASE_PATH=/<repo>` so the app works at `https://<your-user>.github.io/<repo>/`.
+
 ## Legacy
 
 The original printable PHP calendar is preserved in `legacy/`.

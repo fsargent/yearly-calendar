@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { daysInMonth, formatIsoDate, isoToDayOfWeek, parseIsoDate } from '$lib/date/iso';
+	import { addDaysIso, daysInMonth, formatIsoDate, isoToDayOfWeek, parseIsoDate } from '$lib/date/iso';
 	import type { PlannerAllDayEvent } from '$lib/types/planner';
 
 	type MonthDayCell = { idx: number; day: number; dow: number; iso: string; valid: boolean };
@@ -29,6 +29,15 @@
 		lane: number; // 0-based
 		event: PlannerAllDayEvent;
 	};
+
+	type HoverInfo = {
+		title: string;
+		dateRange: string;
+		x: number;
+		y: number;
+	};
+
+	let hover = $state<HoverInfo | null>(null);
 
 	function isWeekend(dow: number): boolean {
 		return dow === 0 || dow === 6;
@@ -159,6 +168,37 @@
 		}
 		return `linear-gradient(90deg, ${parts.join(', ')})`;
 	}
+
+	function endInclusive(ev: PlannerAllDayEvent): string {
+		return addDaysIso(ev.endDateExclusive, -1);
+	}
+
+	function onBarEnter(e: MouseEvent, ev: PlannerAllDayEvent): void {
+		onBarMove(e, ev);
+	}
+
+	function onBarMove(e: MouseEvent, ev: PlannerAllDayEvent): void {
+		const maxW = 360;
+		const maxH = 140;
+		const pad = 14;
+
+		const vw = window.innerWidth;
+		const vh = window.innerHeight;
+
+		const x = Math.min(e.clientX + 12, vw - maxW - pad);
+		const y = Math.min(e.clientY + 12, vh - maxH - pad);
+
+		hover = {
+			title: ev.title,
+			dateRange: `${ev.startDate} → ${endInclusive(ev)}`,
+			x: Math.max(pad, x),
+			y: Math.max(pad, y)
+		};
+	}
+
+	function onBarLeave(): void {
+		hover = null;
+	}
 </script>
 
 <div class="wrap" style={`--col-count:${colCount()}; --cell-min:${cellMin()}px;`}>
@@ -209,19 +249,26 @@
 			{#each mb.bars as b (b.id)}
 				<button
 					class="bar"
+					class:singleDay={b.colEnd - b.colStart === 1}
 					style={`grid-column:${b.colStart} / ${b.colEnd}; grid-row:${b.lane + 2}; background:${barBackground(b.event)}; color:${b.fg};`}
-					title={b.title}
 					type="button"
 					onclick={() => onSelectEvent?.(b.event)}
+					onmouseenter={(e) => onBarEnter(e, b.event)}
+					onmousemove={(e) => onBarMove(e, b.event)}
+					onmouseleave={onBarLeave}
 				>
-					{b.title}
-					{#if (b.event.sources?.length ?? 0) > 1}
-						<span class="dup" title="Merged from multiple calendars">×{b.event.sources.length}</span>
-					{/if}
+					<span class="barText">{b.title}</span>
 				</button>
 			{/each}
 		</div>
 	{/each}
+
+	{#if hover}
+		<div class="tooltip" style={`left:${hover.x}px; top:${hover.y}px;`}>
+			<div class="ttTitle">{hover.title}</div>
+			<div class="ttMeta">{hover.dateRange}</div>
+		</div>
+	{/if}
 </div>
 
 <style>
@@ -245,27 +292,35 @@
 		align-items: end;
 		gap: 0;
 		margin-bottom: 6px;
+		position: sticky;
+		top: 0;
+		z-index: 20;
+		background: var(--bg);
+		/* keep header readable over bars while scrolling */
+		box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
 	}
 	.hLabel {
 		height: 20px;
 		grid-row: 1 / -1;
 	}
 	.hDay {
+		background: var(--bg);
 		font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
 		font-size: 10px;
-		color: #444;
+		color: var(--muted);
 		text-align: center;
 		padding-bottom: 2px;
-		border-bottom: 1px solid #bbb;
+		border-bottom: 1px solid var(--border);
 	}
 	.hWeek {
 		grid-row: 1;
+		background: var(--bg);
 		font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
 		font-size: 10px;
-		color: #333;
+		color: var(--text);
 		text-align: center;
 		padding-bottom: 2px;
-		border-bottom: 1px solid #bbb;
+		border-bottom: 1px solid var(--border);
 		opacity: 0.85;
 	}
 
@@ -288,15 +343,15 @@
 		font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
 		text-transform: uppercase;
 		font-size: 12px;
-		color: #111;
+		color: var(--text);
 		padding-left: 6px;
 		padding-right: 6px;
-		border-bottom: 1px solid #bbb;
+		border-bottom: 1px solid var(--border);
 	}
 	.more {
 		font-size: 11px;
-		color: #333;
-		background: rgba(0, 0, 0, 0.06);
+		color: var(--text);
+		background: rgba(127, 127, 127, 0.18);
 		padding: 1px 6px;
 		border-radius: 999px;
 	}
@@ -312,22 +367,22 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		border-bottom: 1px solid #bbb;
-		color: #222;
+		border-bottom: 1px solid var(--border);
+		color: var(--text);
 		font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
 		font-size: 10px;
 	}
 	.dayCell.weekend {
-		background: #f2f2f2;
+		background: var(--weekend);
 	}
 	.dayCell.empty {
 		background: transparent;
 	}
 	.w {
-		color: #666;
+		color: var(--muted);
 	}
 	.d {
-		color: #333;
+		color: var(--text);
 	}
 
 	.bar {
@@ -336,12 +391,12 @@
 		padding: 0 6px;
 		border-radius: 999px;
 		font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-		font-size: 11px;
+		font-size: clamp(10px, 0.85vw, 12px);
 		line-height: 18px;
 		overflow: hidden;
 		white-space: nowrap;
 		text-overflow: ellipsis;
-		box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.18);
+		box-shadow: inset 0 0 0 1px rgba(127, 127, 127, 0.28);
 		border: 0;
 		cursor: pointer;
 		text-align: left;
@@ -349,21 +404,59 @@
 		align-items: center;
 		gap: 6px;
 	}
+	.barText {
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	/* Single-day pills: allow 2 lines (fits within the fixed lane height by removing vertical margins). */
+	.bar.singleDay {
+		height: 22px;
+		line-height: 11px;
+		margin-top: 0;
+		margin-bottom: 0;
+		padding-top: 2px;
+		padding-bottom: 2px;
+		white-space: normal;
+		border-radius: 12px;
+	}
+	.bar.singleDay .barText {
+		display: -webkit-box;
+		-webkit-line-clamp: 2;
+		line-clamp: 2;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
+		white-space: normal;
+	}
 	.bar:focus-visible {
-		outline: 2px solid #2563eb;
+		outline: 2px solid var(--focus);
 		outline-offset: 2px;
 	}
-	.dup {
-		margin-left: auto;
-		font-size: 10px;
-		opacity: 0.9;
-		background: rgba(255, 255, 255, 0.28);
-		padding: 0 6px;
-		border-radius: 999px;
-		line-height: 16px;
-		height: 16px;
-		display: inline-flex;
-		align-items: center;
+
+	.tooltip {
+		position: fixed;
+		z-index: 40;
+		width: min(360px, calc(100vw - 28px));
+		background: var(--panel);
+		color: var(--text);
+		border: 1px solid var(--border);
+		box-shadow: var(--shadow);
+		border-radius: 12px;
+		padding: 10px 12px;
+		pointer-events: none;
+	}
+	.ttTitle {
+		font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+		font-size: 13px;
+		font-weight: 650;
+		line-height: 1.2;
+		margin-bottom: 4px;
+	}
+	.ttMeta {
+		font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+		font-size: 12px;
+		color: var(--muted);
 	}
 </style>
 

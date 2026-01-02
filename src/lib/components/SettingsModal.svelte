@@ -2,17 +2,24 @@
 	import { onMount } from 'svelte';
 
 	type LayoutMode = 'dates' | 'week';
+	type ThemeMode = 'system' | 'light' | 'dark';
 
 	type Props = {
 		open: boolean;
 		hideBirthdays: boolean;
 		eventRowsPerMonth: number;
 		layoutMode: LayoutMode;
-		onChange: (next: { hideBirthdays: boolean; eventRowsPerMonth: number; layoutMode: LayoutMode }) => void;
+		themeMode: ThemeMode;
+		onChange: (next: {
+			hideBirthdays: boolean;
+			eventRowsPerMonth: number;
+			layoutMode: LayoutMode;
+			themeMode: ThemeMode;
+		}) => void;
 		onClose: () => void;
 	};
 
-	let { open, hideBirthdays, eventRowsPerMonth, layoutMode, onChange, onClose }: Props = $props();
+	let { open, hideBirthdays, eventRowsPerMonth, layoutMode, themeMode, onChange, onClose }: Props = $props();
 	let modalEl = $state<HTMLDivElement | null>(null);
 
 	function onKeyDown(e: KeyboardEvent): void {
@@ -32,11 +39,19 @@
 		return () => window.removeEventListener('keydown', handler);
 	});
 
-	function update(partial: Partial<{ hideBirthdays: boolean; eventRowsPerMonth: number; layoutMode: LayoutMode }>): void {
+	function update(
+		partial: Partial<{
+			hideBirthdays: boolean;
+			eventRowsPerMonth: number;
+			layoutMode: LayoutMode;
+			themeMode: ThemeMode;
+		}>
+	): void {
 		onChange({
 			hideBirthdays: partial.hideBirthdays ?? hideBirthdays,
 			eventRowsPerMonth: partial.eventRowsPerMonth ?? eventRowsPerMonth,
-			layoutMode: partial.layoutMode ?? layoutMode
+			layoutMode: partial.layoutMode ?? layoutMode,
+			themeMode: partial.themeMode ?? themeMode
 		});
 	}
 </script>
@@ -110,6 +125,39 @@
 						</label>
 					</div>
 				</div>
+
+				<div class="row">
+					<div class="label">Theme</div>
+					<div class="choices">
+						<label class="radio">
+							<input
+								type="radio"
+								name="theme"
+								checked={themeMode === 'system'}
+								onchange={() => update({ themeMode: 'system' })}
+							/>
+							<span>System</span>
+						</label>
+						<label class="radio">
+							<input
+								type="radio"
+								name="theme"
+								checked={themeMode === 'light'}
+								onchange={() => update({ themeMode: 'light' })}
+							/>
+							<span>Light</span>
+						</label>
+						<label class="radio">
+							<input
+								type="radio"
+								name="theme"
+								checked={themeMode === 'dark'}
+								onchange={() => update({ themeMode: 'dark' })}
+							/>
+							<span>Dark</span>
+						</label>
+					</div>
+				</div>
 			</div>
 		</div>
 	</div>
@@ -119,7 +167,7 @@
 	.overlay {
 		position: fixed;
 		inset: 0;
-		background: rgba(0, 0, 0, 0.35);
+		background: var(--overlay);
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -130,12 +178,13 @@
 		width: min(560px, 95vw);
 		max-height: min(80vh, 720px);
 		overflow: auto;
-		background: #fff;
+		background: var(--panel);
 		border-radius: 14px;
-		border: 1px solid #e5e7eb;
-		box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+		border: 1px solid var(--border);
+		box-shadow: var(--shadow);
 		padding: 14px 14px 12px;
 		font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+		color: var(--text);
 	}
 	.top {
 		display: flex;
@@ -149,8 +198,9 @@
 		font-weight: 650;
 	}
 	.close {
-		border: 1px solid #ddd;
-		background: #fff;
+		border: 1px solid var(--border);
+		background: var(--panel);
+		color: var(--text);
 		border-radius: 10px;
 		width: 34px;
 		height: 34px;
@@ -178,7 +228,7 @@
 		font-size: 12px;
 		text-transform: uppercase;
 		letter-spacing: 0.02em;
-		color: #555;
+		color: var(--muted);
 	}
 	.choices {
 		display: flex;
@@ -195,7 +245,9 @@
 	.num {
 		width: 70px;
 		padding: 6px 8px;
-		border: 1px solid #ccc;
+		border: 1px solid var(--border);
+		background: var(--panel);
+		color: var(--text);
 		border-radius: 8px;
 	}
 </style>

@@ -8,7 +8,16 @@ const config = {
   preprocess: vitePreprocess(),
 
   kit: {
-    adapter: adapter(),
+    // GitHub Pages serves under "/<repo-name>" for project pages, so we set the base path at build time.
+    // For local dev, BASE_PATH should be unset/empty.
+    paths: {
+      base: process.env.BASE_PATH ?? "",
+    },
+
+    adapter: adapter({
+      // Allows client-side navigation for unknown routes on static hosts (serves 404.html).
+      fallback: "404.html",
+    }),
     prerender: {
       entries: ["*"],
     },
