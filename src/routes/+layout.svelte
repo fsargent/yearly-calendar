@@ -5,7 +5,23 @@
 </script>
 
 <svelte:head>
+	<title>Year Planner</title>
 	<link rel="icon" href={favicon} />
+	<meta name="description" content="All-day events from Google Calendar, shown for the entire year. Client-side only—no backend, your data stays in your browser." />
+
+	<!-- Open Graph / Facebook -->
+	<meta property="og:type" content="website" />
+	<meta property="og:url" content="https://felixsargent.com/yearly-calendar/" />
+	<meta property="og:title" content="Year Planner" />
+	<meta property="og:description" content="All-day events from Google Calendar, shown for the entire year. Client-side only—no backend, your data stays in your browser." />
+	<meta property="og:image" content="https://felixsargent.com/yearly-calendar/og-image.png" />
+
+	<!-- Twitter -->
+	<meta property="twitter:card" content="summary_large_image" />
+	<meta property="twitter:url" content="https://felixsargent.com/yearly-calendar/" />
+	<meta property="twitter:title" content="Year Planner" />
+	<meta property="twitter:description" content="All-day events from Google Calendar, shown for the entire year. Client-side only—no backend, your data stays in your browser." />
+	<meta property="twitter:image" content="https://felixsargent.com/yearly-calendar/og-image.png" />
 </svelte:head>
 
 {@render children()}

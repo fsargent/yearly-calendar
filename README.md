@@ -1,6 +1,6 @@
 # Year Planner (Google Calendar)
 
-A local-first yearly planner that pulls **all-day events** from Google Calendar and renders them in a dense “year-at-a-glance” view (useful for school holidays, vacations, etc).
+A client-side yearly planner that pulls **all-day events** from Google Calendar and renders them in a dense "year-at-a-glance" view (useful for school holidays, vacations, etc). All data is stored locally in your browser—no backend server required.
 
 ![Screenshot](https://github.com/user-attachments/assets/efc8e3e5-740b-458b-bce5-f641eaa00981)
 
