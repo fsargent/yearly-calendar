@@ -521,11 +521,18 @@
 	}
 	.mLabel {
 		position: absolute;
-		top: -8px;
-		left: 2px;
-		font-size: 8px;
-		color: var(--focus);
-		font-weight: bold;
+		top: -10px;
+		left: 50%;
+		transform: translateX(-50%);
+		font-size: 10px;
+		background: var(--focus);
+		color: var(--bg);
+		padding: 2px 6px;
+		border-radius: 99px;
+		font-weight: 700;
+		line-height: 1;
+		z-index: 5;
+		box-shadow: 0 0 0 3px var(--bg);
 	}
 	.w {
 		color: var(--muted);
@@ -572,6 +579,12 @@
 		padding: 2px 1px 0;
 		white-space: normal;
 		border-radius: 12px;
+	}
+	.wrap.vertical .bar.singleDay {
+		font-size: clamp(9px, 2.5vw, 11px);
+		line-height: 1.1;
+		padding-top: 1px;
+		align-items: center;
 	}
 	.bar.singleDay .barText {
 		display: block;
