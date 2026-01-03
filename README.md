@@ -2,8 +2,7 @@
 
 A local-first yearly planner that pulls **all-day events** from Google Calendar and renders them in a dense “year-at-a-glance” view (useful for school holidays, vacations, etc).
 
-<img width="4108" height="2412" alt="CleanShot 2026-01-02 at 5  09 01@2x" src="https://github.com/user-attachments/assets/efc8e3e5-740b-458b-bce5-f641eaa00981" />
-
+![Screenshot](https://github.com/user-attachments/assets/efc8e3e5-740b-458b-bce5-f641eaa00981)
 
 ## Requirements
 

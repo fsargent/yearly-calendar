@@ -32,6 +32,9 @@ jobs:
         env:
           # For a project page (https://<user>.github.io/<repo>/) GitHub sets this.
           BASE_PATH: /${{ github.event.repository.name }}
+          # These are baked into the static build by Vite (they are public values).
+          VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID != '' && vars.VITE_GOOGLE_CLIENT_ID || secrets.VITE_GOOGLE_CLIENT_ID }}
+          VITE_GOOGLE_SCOPES: ${{ vars.VITE_GOOGLE_SCOPES != '' && vars.VITE_GOOGLE_SCOPES || secrets.VITE_GOOGLE_SCOPES }}
         run: bun run build
 
       - name: Upload artifact
