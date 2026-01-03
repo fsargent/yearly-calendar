@@ -16,6 +16,7 @@
 		weekStart: WeekStartMode;
 		calendars: PlannerCalendar[];
 		selectedCalendarIds: Set<string>;
+		isSignedIn: boolean;
 		onChange: (next: {
 			hideBirthdays: boolean;
 			eventRowsPerMonth: number;
@@ -24,6 +25,7 @@
 			weekStart: WeekStartMode;
 		}) => void;
 		onToggleCalendar: (id: string) => void;
+		onSignOut: () => Promise<void>;
 		onClose: () => void;
 	};
 
@@ -36,8 +38,10 @@
 		weekStart,
 		calendars,
 		selectedCalendarIds,
+		isSignedIn,
 		onChange,
 		onToggleCalendar,
+		onSignOut,
 		onClose
 	}: Props = $props();
 	let modalEl = $state<HTMLDivElement | null>(null);
@@ -247,6 +251,13 @@
 					</div>
 				</div>
 
+				{#if isSignedIn}
+					<div class="row" style="margin-top: 10px;">
+						<div class="label">Account</div>
+						<button class="signOut" onclick={() => void onSignOut()}>Sign out</button>
+					</div>
+				{/if}
+
 				<div class="row" style="margin-top: 10px;">
 					<div class="label">Legal</div>
 					<div class="choices">
@@ -269,9 +280,17 @@
 		justify-content: center;
 		padding: 18px;
 		z-index: 60;
+		overflow-y: auto;
+	}
+	@media (max-width: 600px) {
+		.overlay {
+			padding: 12px;
+			align-items: flex-start;
+		}
 	}
 	.modal {
-		width: min(560px, 95vw);
+		width: min(560px, calc(100vw - 36px));
+		max-width: 100%;
 		max-height: min(80vh, 720px);
 		overflow: auto;
 		background: var(--panel);
@@ -302,6 +321,7 @@
 		height: 34px;
 		font-size: 18px;
 		cursor: pointer;
+		flex-shrink: 0;
 	}
 	.section {
 		display: grid;
@@ -311,7 +331,16 @@
 		display: grid;
 		grid-template-columns: 160px 1fr;
 		gap: 10px;
-		align-items: center;
+		align-items: start;
+	}
+	@media (max-width: 600px) {
+		.row {
+			grid-template-columns: 1fr;
+			gap: 8px;
+		}
+		.label {
+			margin-bottom: 4px;
+		}
 	}
 	.pref {
 		grid-column: 1 / -1;
@@ -319,6 +348,11 @@
 		gap: 10px;
 		align-items: center;
 		font-size: 13px;
+		min-width: 0;
+	}
+	.pref span {
+		flex-shrink: 1;
+		min-width: 0;
 	}
 	.label {
 		font-size: 12px;
@@ -331,6 +365,11 @@
 		gap: 14px;
 		align-items: center;
 		flex-wrap: wrap;
+	}
+	@media (max-width: 600px) {
+		.choices {
+			gap: 10px;
+		}
 	}
 	.radio {
 		display: inline-flex;
@@ -357,6 +396,7 @@
 	.calList {
 		display: grid;
 		gap: 6px;
+		min-width: 0;
 	}
 	.cal {
 		display: flex;
@@ -364,16 +404,20 @@
 		gap: 8px;
 		font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
 		font-size: 13px;
+		min-width: 0;
 	}
 	.swatch {
 		width: 10px;
 		height: 10px;
 		border-radius: 999px;
+		flex-shrink: 0;
 	}
 	.name {
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+		min-width: 0;
+		flex: 1;
 	}
 	.tag {
 		margin-left: auto;
@@ -382,6 +426,19 @@
 		border: 1px solid var(--border);
 		padding: 2px 6px;
 		border-radius: 999px;
+	}
+	.signOut {
+		padding: 7px 10px;
+		border-radius: 8px;
+		border: 1px solid var(--btn-secondary-border);
+		background: var(--btn-secondary-bg);
+		color: var(--btn-secondary-text);
+		font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+		font-size: 13px;
+		cursor: pointer;
+	}
+	.signOut:hover {
+		opacity: 0.8;
 	}
 </style>
 

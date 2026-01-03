@@ -69,8 +69,19 @@
 		eventRowsPerMonth = loadJson<number>(STORAGE_EVENT_ROWS_KEY, 3);
 		if (!Number.isFinite(eventRowsPerMonth) || eventRowsPerMonth < 1) eventRowsPerMonth = 3;
 		if (eventRowsPerMonth > 10) eventRowsPerMonth = 10;
-		const lm = loadJson<'dates' | 'week' | 'vertical'>(STORAGE_LAYOUT_MODE_KEY, 'dates');
-		layoutMode = lm === 'week' || lm === 'vertical' ? lm : 'dates';
+		
+		// Check if layout mode has been saved before
+		const hasSavedLayout = localStorage.getItem(STORAGE_LAYOUT_MODE_KEY) !== null;
+		if (hasSavedLayout) {
+			// User has a saved preference, use it
+			const lm = loadJson<'dates' | 'week' | 'vertical'>(STORAGE_LAYOUT_MODE_KEY, 'dates');
+			layoutMode = lm === 'week' || lm === 'vertical' ? lm : 'dates';
+		} else {
+			// No saved preference - detect mobile and default to vertical
+			const isMobile = window.innerWidth < 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+			layoutMode = isMobile ? 'vertical' : 'dates';
+		}
+		
 		const tm = loadJson<'system' | 'light' | 'dark'>(STORAGE_THEME_MODE_KEY, 'system');
 		themeMode = tm === 'light' || tm === 'dark' ? tm : 'system';
 		const ws = loadJson<0 | 1 | 6>(STORAGE_WEEK_START_KEY, 0);
@@ -263,24 +274,31 @@
 		applyTheme();
 
 		const sess = loadSession();
+		let hasValidSession = false;
 		// If we have a token valid for at least 60s, reuse it and auto-load.
 		if (sess && sess.expiresAtMs - Date.now() > 60_000) {
 			accessToken = sess.token;
 			status = 'signed_in';
+			hasValidSession = true;
 			void refreshCalendarsAndEvents();
 		}
 
-		// We can’t reliably know exactly when GIS is loaded, so we poll briefly.
+		// We can't reliably know exactly when GIS is loaded, so we poll briefly.
+		// Only set status to 'signed_out' if we don't already have a valid session restored.
 		const startedAt = Date.now();
 		const timer = window.setInterval(() => {
 			if (isGoogleGisLoaded()) {
 				window.clearInterval(timer);
-				status = 'signed_out';
+				if (!hasValidSession) {
+					status = 'signed_out';
+				}
 				return;
 			}
 			if (Date.now() - startedAt > 5000) {
 				window.clearInterval(timer);
-				status = 'signed_out';
+				if (!hasValidSession) {
+					status = 'signed_out';
+				}
 			}
 		}, 50);
 
@@ -311,14 +329,12 @@
 					/>
 				</label>
 
+				<button class="settings" onclick={() => (settingsOpen = true)}>Settings</button>
 				{#if status === 'signed_in'}
-					<button class="secondary" onclick={() => void refreshCalendarsAndEvents()} disabled={syncing}>
+					<button onclick={() => void refreshCalendarsAndEvents()} disabled={syncing}>
 						{syncing ? 'Syncing…' : 'Refresh'}
 					</button>
-					<button class="secondary" onclick={() => (settingsOpen = true)} aria-label="Settings">⚙️</button>
-					<button class="secondary" onclick={() => void signOut()}>Sign out</button>
 				{:else}
-					<button class="secondary" onclick={() => (settingsOpen = true)} aria-label="Settings">⚙️</button>
 					<button onclick={signIn}>Sign in with Google</button>
 				{/if}
 			</div>
@@ -361,6 +377,7 @@
 		{weekStart}
 		{calendars}
 		{selectedCalendarIds}
+		isSignedIn={status === 'signed_in'}
 		onChange={(next) => {
 			hideBirthdays = next.hideBirthdays;
 			eventRowsPerMonth = next.eventRowsPerMonth;
@@ -375,6 +392,10 @@
 		onToggleCalendar={(id) => {
 			toggleCalendar(id);
 			void refreshCalendarsAndEvents();
+		}}
+		onSignOut={async () => {
+			await signOut();
+			settingsOpen = false;
 		}}
 		onClose={() => (settingsOpen = false)}
 	/>
@@ -460,10 +481,10 @@
 		font-size: 13px;
 		cursor: pointer;
 	}
-	button.secondary {
-		background: var(--btn-secondary-bg);
-		color: var(--btn-secondary-text);
-		border: 1px solid var(--btn-secondary-border);
+	button.settings {
+		background: var(--btn-bg);
+		color: var(--btn-text);
+		border: 1px solid var(--btn-border);
 	}
 	button:disabled {
 		opacity: 0.6;
