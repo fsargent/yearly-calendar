@@ -395,7 +395,7 @@
 		line-height: 18px;
 		overflow: hidden;
 		white-space: nowrap;
-		text-overflow: ellipsis;
+		text-overflow: clip;
 		box-shadow: inset 0 0 0 1px rgba(127, 127, 127, 0.28);
 		border: 0;
 		cursor: pointer;
@@ -407,27 +407,28 @@
 	.barText {
 		min-width: 0;
 		overflow: hidden;
-		text-overflow: ellipsis;
+		text-overflow: clip;
 	}
 
 	/* Single-day pills: allow 2 lines (fits within the fixed lane height by removing vertical margins). */
 	.bar.singleDay {
 		height: 22px;
-		line-height: 11px;
+		font-size: 9px;
+		line-height: 9px;
+		align-items: flex-start;
+		justify-content: center;
+		text-align: center;
 		margin-top: 0;
 		margin-bottom: 0;
-		padding-top: 2px;
-		padding-bottom: 2px;
+		padding: 2px 1px 0;
 		white-space: normal;
 		border-radius: 12px;
 	}
 	.bar.singleDay .barText {
-		display: -webkit-box;
-		-webkit-line-clamp: 2;
-		line-clamp: 2;
-		-webkit-box-orient: vertical;
+		display: block;
 		overflow: hidden;
 		white-space: normal;
+		text-align: center;
 	}
 	.bar:focus-visible {
 		outline: 2px solid var(--focus);
