@@ -14,6 +14,7 @@
 	const STORAGE_EVENT_ROWS_KEY = 'yearPlanner:eventRowsPerMonth:v1';
 	const STORAGE_LAYOUT_MODE_KEY = 'yearPlanner:layoutMode:v1';
 	const STORAGE_THEME_MODE_KEY = 'yearPlanner:themeMode:v1';
+	const STORAGE_WEEK_START_KEY = 'yearPlanner:weekStart:v1';
 	const SESSION_AUTH_KEY = 'yearPlanner:authSession:v1';
 
 	const VITE_GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
@@ -30,8 +31,9 @@
 	let selectedCalendarIds = new Set<string>();
 	let hideBirthdays = false;
 	let eventRowsPerMonth = 3;
-	let layoutMode: 'dates' | 'week' = 'dates';
+	let layoutMode: 'dates' | 'week' | 'vertical' = 'dates';
 	let themeMode: 'system' | 'light' | 'dark' = 'system';
+	let weekStart: 0 | 1 | 6 = 0;
 	let syncing = false;
 
 	let allDayEventsRaw: PlannerAllDayEvent[] = [];
@@ -67,17 +69,20 @@
 		eventRowsPerMonth = loadJson<number>(STORAGE_EVENT_ROWS_KEY, 3);
 		if (!Number.isFinite(eventRowsPerMonth) || eventRowsPerMonth < 1) eventRowsPerMonth = 3;
 		if (eventRowsPerMonth > 10) eventRowsPerMonth = 10;
-		const lm = loadJson<'dates' | 'week'>(STORAGE_LAYOUT_MODE_KEY, 'dates');
-		layoutMode = lm === 'week' ? 'week' : 'dates';
+		const lm = loadJson<'dates' | 'week' | 'vertical'>(STORAGE_LAYOUT_MODE_KEY, 'dates');
+		layoutMode = lm === 'week' || lm === 'vertical' ? lm : 'dates';
 		const tm = loadJson<'system' | 'light' | 'dark'>(STORAGE_THEME_MODE_KEY, 'system');
 		themeMode = tm === 'light' || tm === 'dark' ? tm : 'system';
+		const ws = loadJson<0 | 1 | 6>(STORAGE_WEEK_START_KEY, 0);
+		weekStart = ws === 1 || ws === 6 ? ws : 0;
 	}
 
 	function persistPrefs(): void {
 		saveJson<boolean>(STORAGE_HIDE_BIRTHDAYS_KEY, hideBirthdays);
 		saveJson<number>(STORAGE_EVENT_ROWS_KEY, eventRowsPerMonth);
-		saveJson<'dates' | 'week'>(STORAGE_LAYOUT_MODE_KEY, layoutMode);
+		saveJson<'dates' | 'week' | 'vertical'>(STORAGE_LAYOUT_MODE_KEY, layoutMode);
 		saveJson<'system' | 'light' | 'dark'>(STORAGE_THEME_MODE_KEY, themeMode);
+		saveJson<0 | 1 | 6>(STORAGE_WEEK_START_KEY, weekStart);
 	}
 
 	function applyTheme(): void {
@@ -284,57 +289,60 @@
 </script>
 
 <main>
-	<header>
-		<div class="title">
-			<h1>Year Planner</h1>
-			<p class="sub">All‑day events from Google Calendar, shown for the entire year.</p>
-			<p class="meta">
-				<a href="{base}/privacy">Privacy Policy</a> &bull; <a href="{base}/terms">Terms</a>
-			</p>
-		</div>
+	<div class="scroll-container">
+		<header>
+			<div class="title">
+				<h1>Year Planner</h1>
+				<p class="sub">All‑day events from Google Calendar, shown for the entire year.</p>
+				<p class="meta">
+					<a href="{base}/privacy">Privacy Policy</a> &bull; <a href="{base}/terms">Terms</a>
+				</p>
+			</div>
 
-		<div class="controls">
-			<label class="year">
-				<span>Year</span>
-				<input
-					type="number"
-					min="1970"
-					max="2100"
-					bind:value={year}
-					onchange={() => status === 'signed_in' && void refreshCalendarsAndEvents()}
-				/>
-			</label>
+			<div class="controls">
+				<label class="year">
+					<span>Year</span>
+					<input
+						type="number"
+						min="1970"
+						max="2100"
+						bind:value={year}
+						onchange={() => status === 'signed_in' && void refreshCalendarsAndEvents()}
+					/>
+				</label>
 
-			{#if status === 'signed_in'}
-				<button class="secondary" onclick={() => void refreshCalendarsAndEvents()} disabled={syncing}>
-					{syncing ? 'Syncing…' : 'Refresh'}
-				</button>
-				<button class="secondary" onclick={() => (settingsOpen = true)} aria-label="Settings">⚙️</button>
-				<button class="secondary" onclick={() => void signOut()}>Sign out</button>
-			{:else}
-				<button class="secondary" onclick={() => (settingsOpen = true)} aria-label="Settings">⚙️</button>
-				<button onclick={signIn}>Sign in with Google</button>
-			{/if}
-		</div>
-	</header>
+				{#if status === 'signed_in'}
+					<button class="secondary" onclick={() => void refreshCalendarsAndEvents()} disabled={syncing}>
+						{syncing ? 'Syncing…' : 'Refresh'}
+					</button>
+					<button class="secondary" onclick={() => (settingsOpen = true)} aria-label="Settings">⚙️</button>
+					<button class="secondary" onclick={() => void signOut()}>Sign out</button>
+				{:else}
+					<button class="secondary" onclick={() => (settingsOpen = true)} aria-label="Settings">⚙️</button>
+					<button onclick={signIn}>Sign in with Google</button>
+				{/if}
+			</div>
+		</header>
 
-	{#if status === 'error'}
-		<div class="error">
-			<strong>Error:</strong> {errorMessage}
-		</div>
-	{/if}
+		{#if status === 'error'}
+			<div class="error">
+				<strong>Error:</strong> {errorMessage}
+			</div>
+		{/if}
 
-	<section class="grid">
-		<YearGrid
-			{year}
-			{allDayEvents}
-			fixedEventRows={eventRowsPerMonth}
-			layoutMode={layoutMode}
-			onSelectEvent={(ev) => {
-				selectedEvent = ev;
-			}}
-		/>
-	</section>
+		<section class="grid">
+			<YearGrid
+				{year}
+				{allDayEvents}
+				fixedEventRows={eventRowsPerMonth}
+				layoutMode={layoutMode}
+				{weekStart}
+				onSelectEvent={(ev) => {
+					selectedEvent = ev;
+				}}
+			/>
+		</section>
+	</div>
 
 	<EventModal
 		event={selectedEvent}
@@ -350,6 +358,7 @@
 		{eventRowsPerMonth}
 		{layoutMode}
 		{themeMode}
+		{weekStart}
 		{calendars}
 		{selectedCalendarIds}
 		onChange={(next) => {
@@ -357,6 +366,7 @@
 			eventRowsPerMonth = next.eventRowsPerMonth;
 			layoutMode = next.layoutMode;
 			themeMode = next.themeMode;
+			weekStart = next.weekStart;
 			persistPrefs();
 			applyTheme();
 			// No refetch needed: apply settings to the last fetched events.
@@ -372,13 +382,12 @@
 
 <style>
 	main {
-		padding: 12px 14px;
 		width: 100vw;
 		height: 100vh;
 		box-sizing: border-box;
 		display: flex;
 		flex-direction: column;
-		gap: 10px;
+		overflow: hidden;
 	}
 	header {
 		display: flex;
@@ -386,6 +395,14 @@
 		justify-content: space-between;
 		gap: 12px;
 		margin-bottom: 10px;
+		padding-top: 12px;
+	}
+	.scroll-container {
+		flex: 1;
+		overflow: auto;
+		padding: 0 14px 12px;
+		display: flex;
+		flex-direction: column;
 	}
 	.title h1 {
 		margin: 0;
@@ -465,6 +482,6 @@
 	.grid {
 		flex: 1;
 		min-height: 0;
-		overflow: auto;
+		/* overflow is now handled by .scroll-container */
 	}
 </style>

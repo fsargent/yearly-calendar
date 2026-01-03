@@ -3,19 +3,21 @@
 	import type { PlannerAllDayEvent } from '$lib/types/planner';
 
 	type MonthDayCell = { idx: number; day: number; dow: number; iso: string; valid: boolean };
+	type WeekRow = { weekNum: number; startDate: string; cells: { iso: string; day: number; month: number }[] };
 
 	type Props = {
 		year: number;
 		allDayEvents: PlannerAllDayEvent[];
 		onSelectEvent?: (event: PlannerAllDayEvent) => void;
 		fixedEventRows?: number;
-		layoutMode?: 'dates' | 'week';
+		layoutMode?: 'dates' | 'week' | 'vertical';
+		weekStart?: 0 | 1 | 6;
 	};
 
-	let { year, allDayEvents, onSelectEvent, fixedEventRows, layoutMode }: Props = $props();
-	const mode = () => (layoutMode === 'week' ? 'week' : 'dates');
-	const colCount = () => (mode() === 'week' ? 42 : 31);
-	const cellMin = () => (mode() === 'week' ? 20 : 22);
+	let { year, allDayEvents, onSelectEvent, fixedEventRows, layoutMode, weekStart }: Props = $props();
+	const mode = () => (layoutMode === 'week' ? 'week' : layoutMode === 'vertical' ? 'vertical' : 'dates');
+	const colCount = () => (mode() === 'week' ? 42 : mode() === 'vertical' ? 7 : 31);
+	const cellMin = () => (mode() === 'week' ? 20 : mode() === 'vertical' ? 32 : 22);
 
 	const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -38,6 +40,8 @@
 	};
 
 	let hover = $state<HoverInfo | null>(null);
+	// 0=Sun, 1=Mon, ..., 6=Sat
+	let weekStartDay = $derived(weekStart ?? 0); 
 
 	function isWeekend(dow: number): boolean {
 		return dow === 0 || dow === 6;
@@ -66,6 +70,36 @@
 		});
 	}
 
+	function buildYearWeeks(): WeekRow[] {
+		const weeks: WeekRow[] = [];
+		// Start from Jan 1
+		let currentIso = formatIsoDate(year, 1, 1);
+		// Align to start of week (using weekStartDay)
+		// dow is 0=Sun. if weekStartDay=1 (Mon), and dow=0 (Sun), diff = (0 - 1 + 7)%7 = 6. -> subtract 6 days.
+		const dow = isoToDayOfWeek(currentIso);
+		const daysToSubtract = (dow - weekStartDay + 7) % 7;
+		let weekStart = addDaysIso(currentIso, -daysToSubtract);
+
+		// Generate 53 weeks to cover the whole year
+		for (let i = 0; i < 53; i++) {
+			const cells = [];
+			for (let d = 0; d < 7; d++) {
+				const iso = addDaysIso(weekStart, d);
+				const { year: y, month, day } = parseIsoDate(iso);
+				// If we've moved to the next year completely, stop (unless it's the first week of next year overlapping)
+				// Actually, we just want to cover all days in current `year`.
+				cells.push({ iso, day, month });
+			}
+			weeks.push({ weekNum: i + 1, startDate: weekStart, cells });
+			weekStart = addDaysIso(weekStart, 7);
+			
+			// Stop if the start of next week is strictly in the next year
+			const nextWeekStart = parseIsoDate(weekStart);
+			if (nextWeekStart.year > year) break;
+		}
+		return weeks;
+	}
+
 	function intersectsMonth(ev: PlannerAllDayEvent, month1to12: number): boolean {
 		const s = parseIsoDate(ev.startDate);
 		const e = parseIsoDate(ev.endDateExclusive);
@@ -74,6 +108,11 @@
 		const start = new Date(Date.UTC(s.year, s.month - 1, s.day));
 		const endEx = new Date(Date.UTC(e.year, e.month - 1, e.day));
 		return start < monthEndExclusive && endEx > monthStart;
+	}
+
+	function intersectsWeek(ev: PlannerAllDayEvent, weekStartIso: string): boolean {
+		const weekEndExIso = addDaysIso(weekStartIso, 7);
+		return ev.startDate < weekEndExIso && ev.endDateExclusive > weekStartIso;
 	}
 
 	function clampEventToMonth(ev: PlannerAllDayEvent, month1to12: number): { startDay: number; endDayExclusive: number } | null {
@@ -95,6 +134,24 @@
 		const endDayExclusive = endIso === monthEndExIso ? dim + 1 : end.day;
 		if (endDayExclusive <= startDay) return null;
 		return { startDay, endDayExclusive };
+	}
+
+	function clampEventToWeek(ev: PlannerAllDayEvent, weekStartIso: string): { startIdx: number; endIdxExclusive: number } | null {
+		const weekEndExIso = addDaysIso(weekStartIso, 7);
+		
+		const startIso = ev.startDate < weekStartIso ? weekStartIso : ev.startDate;
+		const endIso = ev.endDateExclusive > weekEndExIso ? weekEndExIso : ev.endDateExclusive;
+
+		if (endIso <= startIso) return null;
+
+		// Calculate 0-based index from weekStart
+		const startDiff = (new Date(startIso).getTime() - new Date(weekStartIso).getTime()) / 86400000;
+		const endDiff = (new Date(endIso).getTime() - new Date(weekStartIso).getTime()) / 86400000;
+		
+		return {
+			startIdx: Math.round(startDiff),
+			endIdxExclusive: Math.round(endDiff)
+		};
 	}
 
 	function lanePack(bars: Array<Omit<MonthBar, 'lane'>>): MonthBar[] {
@@ -155,6 +212,37 @@
 		return { bars: visible, laneCount: maxLanes, hiddenCount };
 	}
 
+	function buildWeekBars(week: WeekRow): { bars: MonthBar[]; laneCount: number; hiddenCount: number } {
+		const candidates = allDayEvents
+			.filter((ev) => intersectsWeek(ev, week.startDate))
+			.map((ev) => {
+				const clamped = clampEventToWeek(ev, week.startDate);
+				if (!clamped) return null;
+
+				// vertical grid: col 1 is week label/gutter, days are 2-8
+				return {
+					id: `${ev.calendarId}:${ev.id}:${ev.startDate}:${ev.endDateExclusive}:w${week.weekNum}`,
+					title: ev.title,
+					bg: ev.color.bg,
+					fg: ev.color.fg,
+					colStart: 2 + clamped.startIdx,
+					colEnd: 2 + clamped.endIdxExclusive,
+					event: ev
+				};
+			})
+			.filter((x): x is Omit<MonthBar, 'lane'> => Boolean(x))
+			.sort((a, b) => a.colStart - b.colStart || a.colEnd - b.colEnd || a.title.localeCompare(b.title));
+
+		const bars = lanePack(candidates);
+		const laneCount = bars.reduce((m, b) => Math.max(m, b.lane + 1), 0);
+		
+		const maxLanes = fixedEventRows && fixedEventRows > 0 ? fixedEventRows : Math.max(1, laneCount);
+		const visible = bars.filter((b) => b.lane < maxLanes);
+		const hiddenCount = bars.length - visible.length;
+		
+		return { bars: visible, laneCount: maxLanes, hiddenCount };
+	}
+
 	function barBackground(ev: PlannerAllDayEvent): string {
 		const sources = ev.sources ?? [];
 		if (sources.length <= 1) return ev.color.bg;
@@ -201,7 +289,7 @@
 	}
 </script>
 
-<div class="wrap" style={`--col-count:${colCount()}; --cell-min:${cellMin()}px;`}>
+<div class="wrap" class:vertical={mode() === 'vertical'} style={`--col-count:${colCount()}; --cell-min:${cellMin()}px;`}>
 	<div class="year">{year}</div>
 
 	<div class="headerRow">
@@ -213,6 +301,10 @@
 			{#each Array.from({ length: 42 }, (_, i) => i) as i}
 				<div class="hDay" style={`grid-row:2;`}>{['S', 'M', 'T', 'W', 'T', 'F', 'S'][i % 7]}</div>
 			{/each}
+		{:else if mode() === 'vertical'}
+			{#each Array.from({ length: 7 }, (_, i) => i) as i}
+				<div class="hDay" style={`grid-row:2;`}>{['S', 'M', 'T', 'W', 'T', 'F', 'S'][(i + weekStartDay) % 7]}</div>
+			{/each}
 		{:else}
 			{#each Array.from({ length: 31 }, (_, i) => i + 1) as day}
 				<div class="hDay">{day}</div>
@@ -220,48 +312,91 @@
 		{/if}
 	</div>
 
-	{#each Array.from({ length: 12 }, (_, i) => i + 1) as month}
-		{@const cells = buildMonthCells(month)}
-		{@const mb = buildMonthBars(month)}
-		<div class="monthRow" style={`--lane-count:${Math.max(1, mb.laneCount)};`}>
-			<div class="monthLabel">
-				<span>{monthLabels[month - 1]}</span>
-				{#if mb.hiddenCount > 0}
-					<span class="more" title={`${mb.hiddenCount} event(s) not shown`}>+{mb.hiddenCount}</span>
-				{/if}
-			</div>
-			<div class="monthGutter"></div>
+	{#if mode() === 'vertical'}
+		{#each buildYearWeeks() as week}
+			{@const wb = buildWeekBars(week)}
+			<!-- Determine if this week starts a new month to show a label? Or just show week range? -->
+			<!-- For simplicity, let's just show Week Number, maybe month name if it's the first week of month -->
+			<div class="monthRow weekRow" style={`--lane-count:${Math.max(1, wb.laneCount)};`}>
+				<div class="monthLabel weekLabel">
+					<span>W{week.weekNum}</span>
+					{#if wb.hiddenCount > 0}
+						<span class="more" title={`${wb.hiddenCount} event(s) not shown`}>+{wb.hiddenCount}</span>
+					{/if}
+				</div>
+				<div class="monthGutter"></div>
 
-			{#each cells as c (month + ':' + c.idx)}
-				{#if c.valid}
-					<div class="dayCell" class:weekend={isWeekend(c.dow)} title={c.iso}>
-						{#if mode() === 'week'}
-							<span class="d">{c.day}</span>
-						{:else}
-							<span class="w">{['S', 'M', 'T', 'W', 'T', 'F', 'S'][c.dow]}</span>
+				{#each week.cells as c, idx}
+					{@const isCurMonth = c.iso.startsWith(year + '-')}
+					{@const cellDow = (idx + weekStartDay) % 7}
+					<div class="dayCell" class:weekend={isWeekend(cellDow)} title={c.iso} style={`opacity: ${isCurMonth ? 1 : 0.4}`}>
+						<span class="d">{c.day}</span>
+						{#if c.day === 1 || (idx === 0 && week.cells[6].month !== c.month)}
+							<span class="mLabel">{monthLabels[c.month - 1]}</span>
 						{/if}
 					</div>
-				{:else}
-					<div class="dayCell empty"></div>
-				{/if}
-			{/each}
+				{/each}
 
-			{#each mb.bars as b (b.id)}
-				<button
-					class="bar"
-					class:singleDay={b.colEnd - b.colStart === 1}
-					style={`grid-column:${b.colStart} / ${b.colEnd}; grid-row:${b.lane + 2}; background:${barBackground(b.event)}; color:${b.fg};`}
-					type="button"
-					onclick={() => onSelectEvent?.(b.event)}
-					onmouseenter={(e) => onBarEnter(e, b.event)}
-					onmousemove={(e) => onBarMove(e, b.event)}
-					onmouseleave={onBarLeave}
-				>
-					<span class="barText">{b.title}</span>
-				</button>
-			{/each}
-		</div>
-	{/each}
+				{#each wb.bars as b (b.id)}
+					<button
+						class="bar"
+						class:singleDay={b.colEnd - b.colStart === 1}
+						style={`grid-column:${b.colStart} / ${b.colEnd}; grid-row:${b.lane + 2}; background:${barBackground(b.event)}; color:${b.fg};`}
+						type="button"
+						onclick={() => onSelectEvent?.(b.event)}
+						onmouseenter={(e) => onBarEnter(e, b.event)}
+						onmousemove={(e) => onBarMove(e, b.event)}
+						onmouseleave={onBarLeave}
+					>
+						<span class="barText">{b.title}</span>
+					</button>
+				{/each}
+			</div>
+		{/each}
+	{:else}
+		{#each Array.from({ length: 12 }, (_, i) => i + 1) as month}
+			{@const cells = buildMonthCells(month)}
+			{@const mb = buildMonthBars(month)}
+			<div class="monthRow" style={`--lane-count:${Math.max(1, mb.laneCount)};`}>
+				<div class="monthLabel">
+					<span>{monthLabels[month - 1]}</span>
+					{#if mb.hiddenCount > 0}
+						<span class="more" title={`${mb.hiddenCount} event(s) not shown`}>+{mb.hiddenCount}</span>
+					{/if}
+				</div>
+				<div class="monthGutter"></div>
+
+				{#each cells as c (month + ':' + c.idx)}
+					{#if c.valid}
+						<div class="dayCell" class:weekend={isWeekend(c.dow)} title={c.iso}>
+							{#if mode() === 'week'}
+								<span class="d">{c.day}</span>
+							{:else}
+								<span class="w">{['S', 'M', 'T', 'W', 'T', 'F', 'S'][c.dow]}</span>
+							{/if}
+						</div>
+					{:else}
+						<div class="dayCell empty"></div>
+					{/if}
+				{/each}
+
+				{#each mb.bars as b (b.id)}
+					<button
+						class="bar"
+						class:singleDay={b.colEnd - b.colStart === 1}
+						style={`grid-column:${b.colStart} / ${b.colEnd}; grid-row:${b.lane + 2}; background:${barBackground(b.event)}; color:${b.fg};`}
+						type="button"
+						onclick={() => onSelectEvent?.(b.event)}
+						onmouseenter={(e) => onBarEnter(e, b.event)}
+						onmousemove={(e) => onBarMove(e, b.event)}
+						onmouseleave={onBarLeave}
+					>
+						<span class="barText">{b.title}</span>
+					</button>
+				{/each}
+			</div>
+		{/each}
+	{/if}
 
 	{#if hover}
 		<div class="tooltip" style={`left:${hover.x}px; top:${hover.y}px;`}>
@@ -278,6 +413,11 @@
 		--col-count: 31;
 		--cell-min: 22px;
 	}
+	/* Vertical mode is mobile friendly */
+	.wrap.vertical {
+		min-width: 320px;
+	}
+
 	.year {
 		text-align: center;
 		font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
@@ -371,12 +511,21 @@
 		color: var(--text);
 		font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
 		font-size: 10px;
+		position: relative;
 	}
 	.dayCell.weekend {
 		background: var(--weekend);
 	}
 	.dayCell.empty {
 		background: transparent;
+	}
+	.mLabel {
+		position: absolute;
+		top: -8px;
+		left: 2px;
+		font-size: 8px;
+		color: var(--focus);
+		font-weight: bold;
 	}
 	.w {
 		color: var(--muted);
@@ -460,4 +609,3 @@
 		color: var(--muted);
 	}
 </style>
-

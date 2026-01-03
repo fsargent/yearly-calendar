@@ -3,8 +3,9 @@
 	import { base } from '$app/paths';
 	import type { PlannerCalendar } from '$lib/types/planner';
 
-	type LayoutMode = 'dates' | 'week';
+	type LayoutMode = 'dates' | 'week' | 'vertical';
 	type ThemeMode = 'system' | 'light' | 'dark';
+	type WeekStartMode = 0 | 1 | 6; // Sun | Mon | Sat
 
 	type Props = {
 		open: boolean;
@@ -12,6 +13,7 @@
 		eventRowsPerMonth: number;
 		layoutMode: LayoutMode;
 		themeMode: ThemeMode;
+		weekStart: WeekStartMode;
 		calendars: PlannerCalendar[];
 		selectedCalendarIds: Set<string>;
 		onChange: (next: {
@@ -19,6 +21,7 @@
 			eventRowsPerMonth: number;
 			layoutMode: LayoutMode;
 			themeMode: ThemeMode;
+			weekStart: WeekStartMode;
 		}) => void;
 		onToggleCalendar: (id: string) => void;
 		onClose: () => void;
@@ -30,6 +33,7 @@
 		eventRowsPerMonth,
 		layoutMode,
 		themeMode,
+		weekStart,
 		calendars,
 		selectedCalendarIds,
 		onChange,
@@ -61,13 +65,15 @@
 			eventRowsPerMonth: number;
 			layoutMode: LayoutMode;
 			themeMode: ThemeMode;
+			weekStart: WeekStartMode;
 		}>
 	): void {
 		onChange({
 			hideBirthdays: partial.hideBirthdays ?? hideBirthdays,
 			eventRowsPerMonth: partial.eventRowsPerMonth ?? eventRowsPerMonth,
 			layoutMode: partial.layoutMode ?? layoutMode,
-			themeMode: partial.themeMode ?? themeMode
+			themeMode: partial.themeMode ?? themeMode,
+			weekStart: partial.weekStart ?? weekStart
 		});
 	}
 </script>
@@ -161,8 +167,52 @@
 							/>
 							<span>Week aligned</span>
 						</label>
+						<label class="radio">
+							<input
+								type="radio"
+								name="layout"
+								checked={layoutMode === 'vertical'}
+								onchange={() => update({ layoutMode: 'vertical' })}
+							/>
+							<span>Vertical</span>
+						</label>
 					</div>
 				</div>
+
+				{#if layoutMode === 'vertical'}
+					<div class="row">
+						<div class="label">Week Start</div>
+						<div class="choices">
+							<label class="radio">
+								<input
+									type="radio"
+									name="weekStart"
+									checked={weekStart === 0}
+									onchange={() => update({ weekStart: 0 })}
+								/>
+								<span>Sunday</span>
+							</label>
+							<label class="radio">
+								<input
+									type="radio"
+									name="weekStart"
+									checked={weekStart === 1}
+									onchange={() => update({ weekStart: 1 })}
+								/>
+								<span>Monday</span>
+							</label>
+							<label class="radio">
+								<input
+									type="radio"
+									name="weekStart"
+									checked={weekStart === 6}
+									onchange={() => update({ weekStart: 6 })}
+								/>
+								<span>Saturday</span>
+							</label>
+						</div>
+					</div>
+				{/if}
 
 				<div class="row">
 					<div class="label">Theme</div>
