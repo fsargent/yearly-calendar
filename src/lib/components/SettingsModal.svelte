@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { base } from '$app/paths';
+	import type { PlannerCalendar } from '$lib/types/planner';
 
 	type LayoutMode = 'dates' | 'week';
 	type ThemeMode = 'system' | 'light' | 'dark';
@@ -10,16 +12,30 @@
 		eventRowsPerMonth: number;
 		layoutMode: LayoutMode;
 		themeMode: ThemeMode;
+		calendars: PlannerCalendar[];
+		selectedCalendarIds: Set<string>;
 		onChange: (next: {
 			hideBirthdays: boolean;
 			eventRowsPerMonth: number;
 			layoutMode: LayoutMode;
 			themeMode: ThemeMode;
 		}) => void;
+		onToggleCalendar: (id: string) => void;
 		onClose: () => void;
 	};
 
-	let { open, hideBirthdays, eventRowsPerMonth, layoutMode, themeMode, onChange, onClose }: Props = $props();
+	let {
+		open,
+		hideBirthdays,
+		eventRowsPerMonth,
+		layoutMode,
+		themeMode,
+		calendars,
+		selectedCalendarIds,
+		onChange,
+		onToggleCalendar,
+		onClose
+	}: Props = $props();
 	let modalEl = $state<HTMLDivElement | null>(null);
 
 	function onKeyDown(e: KeyboardEvent): void {
@@ -73,6 +89,28 @@
 			</div>
 
 			<div class="section">
+				{#if calendars.length > 0}
+					<div class="row" style="align-items: flex-start;">
+						<div class="label" style="padding-top: 2px;">Calendars</div>
+						<div class="calList">
+							{#each calendars as cal (cal.id)}
+								<label class="cal">
+									<input
+										type="checkbox"
+										checked={selectedCalendarIds.has(cal.id)}
+										onchange={() => onToggleCalendar(cal.id)}
+									/>
+									<span class="swatch" style={`background:${cal.backgroundColor};`}></span>
+									<span class="name">{cal.title}</span>
+									{#if cal.primary}
+										<span class="tag">primary</span>
+									{/if}
+								</label>
+							{/each}
+						</div>
+					</div>
+				{/if}
+
 				<div class="row">
 					<label class="pref">
 						<input
@@ -156,6 +194,14 @@
 							/>
 							<span>Dark</span>
 						</label>
+					</div>
+				</div>
+
+				<div class="row" style="margin-top: 10px;">
+					<div class="label">Legal</div>
+					<div class="choices">
+						<a href="{base}/privacy" class="link">Privacy</a>
+						<a href="{base}/terms" class="link">Terms</a>
 					</div>
 				</div>
 			</div>
@@ -249,6 +295,43 @@
 		background: var(--panel);
 		color: var(--text);
 		border-radius: 8px;
+	}
+	.link {
+		color: var(--focus);
+		text-decoration: none;
+		font-size: 13px;
+	}
+	.link:hover {
+		text-decoration: underline;
+	}
+	.calList {
+		display: grid;
+		gap: 6px;
+	}
+	.cal {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+		font-size: 13px;
+	}
+	.swatch {
+		width: 10px;
+		height: 10px;
+		border-radius: 999px;
+	}
+	.name {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.tag {
+		margin-left: auto;
+		font-size: 11px;
+		color: var(--muted);
+		border: 1px solid var(--border);
+		padding: 2px 6px;
+		border-radius: 999px;
 	}
 </style>
 

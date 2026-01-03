@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { base } from '$app/paths';
 	import YearGrid from '$lib/components/YearGrid.svelte';
 	import EventModal from '$lib/components/EventModal.svelte';
 	import SettingsModal from '$lib/components/SettingsModal.svelte';
@@ -287,6 +288,9 @@
 		<div class="title">
 			<h1>Year Planner</h1>
 			<p class="sub">All‑day events from Google Calendar, shown for the entire year.</p>
+			<p class="meta">
+				<a href="{base}/privacy">Privacy Policy</a> &bull; <a href="{base}/terms">Terms</a>
+			</p>
 		</div>
 
 		<div class="controls">
@@ -320,32 +324,6 @@
 		</div>
 	{/if}
 
-	{#if status === 'signed_in'}
-		<section class="sidebar">
-			<h2>Calendars</h2>
-			<p class="hint">Select calendars to include. Saved in your browser.</p>
-			<div class="calList">
-				{#each calendars as cal (cal.id)}
-					<label class="cal">
-						<input
-							type="checkbox"
-							checked={selectedCalendarIds.has(cal.id)}
-							onchange={() => {
-								toggleCalendar(cal.id);
-								void refreshCalendarsAndEvents();
-							}}
-						/>
-						<span class="swatch" style={`background:${cal.backgroundColor};`}></span>
-						<span class="name">{cal.title}</span>
-						{#if cal.primary}
-							<span class="tag">primary</span>
-						{/if}
-					</label>
-				{/each}
-			</div>
-		</section>
-	{/if}
-
 	<section class="grid">
 		<YearGrid
 			{year}
@@ -372,6 +350,8 @@
 		{eventRowsPerMonth}
 		{layoutMode}
 		{themeMode}
+		{calendars}
+		{selectedCalendarIds}
 		onChange={(next) => {
 			hideBirthdays = next.hideBirthdays;
 			eventRowsPerMonth = next.eventRowsPerMonth;
@@ -381,6 +361,10 @@
 			applyTheme();
 			// No refetch needed: apply settings to the last fetched events.
 			allDayEvents = applyPrefs(allDayEventsRaw);
+		}}
+		onToggleCalendar={(id) => {
+			toggleCalendar(id);
+			void refreshCalendarsAndEvents();
 		}}
 		onClose={() => (settingsOpen = false)}
 	/>
@@ -413,6 +397,19 @@
 		color: var(--muted);
 		font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
 		font-size: 13px;
+	}
+	.meta {
+		margin: 2px 0 0;
+		color: var(--muted);
+		font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+		font-size: 11px;
+	}
+	.meta a {
+		color: inherit;
+		text-decoration: none;
+	}
+	.meta a:hover {
+		text-decoration: underline;
 	}
 	.controls {
 		display: flex;
@@ -464,54 +461,6 @@
 		border-radius: 10px;
 		font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
 		font-size: 13px;
-	}
-	.sidebar {
-		margin: 10px 0 12px;
-		padding: 10px 12px;
-		border: 1px solid var(--border);
-		background: var(--panel);
-		border-radius: 12px;
-	}
-	.sidebar h2 {
-		margin: 0 0 4px;
-		font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-		font-size: 14px;
-	}
-	.hint {
-		margin: 0 0 10px;
-		color: var(--muted);
-		font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-		font-size: 12px;
-	}
-	.calList {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-		gap: 6px 10px;
-	}
-	.cal {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-		font-size: 13px;
-	}
-	.swatch {
-		width: 10px;
-		height: 10px;
-		border-radius: 999px;
-	}
-	.name {
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-	.tag {
-		margin-left: auto;
-		font-size: 11px;
-		color: var(--muted);
-		border: 1px solid var(--border);
-		padding: 2px 6px;
-		border-radius: 999px;
 	}
 	.grid {
 		flex: 1;
