@@ -16,10 +16,12 @@ runtimes:
     - python@3.10.8
 # This is the section where you manage your linters. (https://docs.trunk.io/check/configuration)
 lint:
+  disabled:
+    - biome
   enabled:
+    - eslint@9.39.2
     - actionlint@1.7.10
     - oxipng@10.0.0
-    - biome@2.3.11
     - checkov@3.2.497
     - git-diff-check
     - markdownlint@0.47.0
