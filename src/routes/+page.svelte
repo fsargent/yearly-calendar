@@ -311,7 +311,7 @@
 		<header>
 			<div class="title">
 				<h1>Year Planner</h1>
-				<p class="sub">All‑day events from Google Calendar, shown for the entire year. <a href="{base}/privacy">Privacy</a> first, local only.</p>
+				<p class="sub">All‑day events from Google Calendar, shown for the entire year. Private and local only.</p>
 				<p class="meta">
 					<a href="{base}/privacy">Privacy Policy</a> &bull; <a href="{base}/terms">Terms</a>
 				</p>
