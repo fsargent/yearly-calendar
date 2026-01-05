@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { base } from '$app/paths';
 </script>
 
 <main>
@@ -70,7 +69,7 @@
 	</section>
 
     <footer class="controls">
-        <a href="{base}/">Back to App</a>
+        <a href="../">Back to App</a>
     </footer>
 </main>
 

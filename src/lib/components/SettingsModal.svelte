@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { base } from '$app/paths';
 	import type { PlannerCalendar } from '$lib/types/planner';
 
 	type LayoutMode = 'dates' | 'week' | 'vertical';
@@ -261,8 +260,8 @@
 				<div class="row" style="margin-top: 10px;">
 					<div class="label">Legal</div>
 					<div class="choices">
-						<a href="{base}/privacy" class="link">Privacy</a>
-						<a href="{base}/terms" class="link">Terms</a>
+						<a href="privacy" class="link">Privacy</a>
+						<a href="terms" class="link">Terms</a>
 					</div>
 				</div>
 			</div>
