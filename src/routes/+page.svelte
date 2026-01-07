@@ -310,9 +310,9 @@
 		<header>
 			<div class="title">
 				<h1>Year Planner</h1>
-				<p class="sub">All‑day events from Google Calendar, shown for the entire year. Private and local only.</p>
+				<p class="sub">Year Planner displays your Google Calendar all-day events (like holidays, vacations, birthdays, and other full-day reminders) in a single yearly grid view. This helps you see your schedule at a glance and plan ahead.</p>
 				<p class="meta">
-					<a href="privacy">Privacy Policy</a> &bull; <a href="terms">Terms</a>
+					<a href="about">About</a> &bull; <a href="privacy">Privacy Policy</a> &bull; <a href="terms">Terms</a>
 				</p>
 			</div>
 
@@ -436,7 +436,7 @@
 		font-size: 13px;
 	}
 	.meta {
-		margin: 2px 0 0;
+		margin: 12px 0 0;
 		color: var(--muted);
 		font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
 		font-size: 11px;

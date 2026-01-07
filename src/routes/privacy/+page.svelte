@@ -70,7 +70,7 @@
         </section>
 
     <footer class="controls">
-        <a href="../">Back to App</a>
+        <a href="../">Back to App</a> &bull; <a href="../about">About</a> &bull; <a href="../terms">Terms</a>
     </footer>
 </main>
 
