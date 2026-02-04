@@ -15,6 +15,8 @@
 	<meta property="og:title" content="Year Planner" />
 	<meta property="og:description" content="All-day events from Google Calendar, shown for the entire year. Client-side only—no backend, your data stays in your browser." />
 	<meta property="og:image" content="https://felixsargent.com/yearly-calendar/og-image.png" />
+	<meta property="og:image:width" content="1200" />
+	<meta property="og:image:height" content="630" />
 
 	<!-- Twitter -->
 	<meta property="twitter:card" content="summary_large_image" />

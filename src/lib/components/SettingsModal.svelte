@@ -8,7 +8,7 @@
 
 	type Props = {
 		open: boolean;
-		hideBirthdays: boolean;
+		eventExclusions: string;
 		eventRowsPerMonth: number;
 		layoutMode: LayoutMode;
 		themeMode: ThemeMode;
@@ -17,7 +17,7 @@
 		selectedCalendarIds: Set<string>;
 		isSignedIn: boolean;
 		onChange: (next: {
-			hideBirthdays: boolean;
+			eventExclusions: string;
 			eventRowsPerMonth: number;
 			layoutMode: LayoutMode;
 			themeMode: ThemeMode;
@@ -30,7 +30,7 @@
 
 	let {
 		open,
-		hideBirthdays,
+		eventExclusions,
 		eventRowsPerMonth,
 		layoutMode,
 		themeMode,
@@ -64,7 +64,7 @@
 
 	function update(
 		partial: Partial<{
-			hideBirthdays: boolean;
+			eventExclusions: string;
 			eventRowsPerMonth: number;
 			layoutMode: LayoutMode;
 			themeMode: ThemeMode;
@@ -72,7 +72,7 @@
 		}>
 	): void {
 		onChange({
-			hideBirthdays: partial.hideBirthdays ?? hideBirthdays,
+			eventExclusions: partial.eventExclusions ?? eventExclusions,
 			eventRowsPerMonth: partial.eventRowsPerMonth ?? eventRowsPerMonth,
 			layoutMode: partial.layoutMode ?? layoutMode,
 			themeMode: partial.themeMode ?? themeMode,
@@ -121,32 +121,30 @@
 				{/if}
 
 				<div class="row">
-					<label class="pref">
-						<input
-							type="checkbox"
-							checked={hideBirthdays}
-							onchange={() => update({ hideBirthdays: !hideBirthdays })}
-						/>
-						<span>Hide birthdays</span>
-					</label>
+					<div class="label">Hide events containing</div>
+					<input
+						class="exclusions"
+						type="text"
+						value={eventExclusions}
+						placeholder={`home, "work day"`}
+						onchange={(e) => update({ eventExclusions: (e.currentTarget as HTMLInputElement).value })}
+					/>
 				</div>
 
 				<div class="row">
-					<label class="pref">
-						<span>Event rows per month</span>
-						<input
-							class="num"
-							type="number"
-							min="1"
-							max="10"
-							value={eventRowsPerMonth}
-							onchange={(e) => {
-								const val = Number((e.currentTarget as HTMLInputElement).value);
-								const next = Number.isFinite(val) ? Math.max(1, Math.min(10, val)) : 3;
-								update({ eventRowsPerMonth: next });
-							}}
-						/>
-					</label>
+					<div class="label">Event rows per month</div>
+					<input
+						class="num"
+						type="number"
+						min="1"
+						max="10"
+						value={eventRowsPerMonth}
+						onchange={(e) => {
+							const val = Number((e.currentTarget as HTMLInputElement).value);
+							const next = Number.isFinite(val) ? Math.max(1, Math.min(10, val)) : 3;
+							update({ eventRowsPerMonth: next });
+						}}
+					/>
 				</div>
 
 				<div class="row">
@@ -383,6 +381,20 @@
 		background: var(--panel);
 		color: var(--text);
 		border-radius: 8px;
+	}
+	.exclusions {
+		width: 100%;
+		padding: 6px 8px;
+		border: 1px solid var(--border);
+		background: var(--panel);
+		color: var(--text);
+		border-radius: 8px;
+		font-size: 13px;
+		box-sizing: border-box;
+	}
+	.exclusions::placeholder {
+		color: var(--muted);
+		opacity: 0.7;
 	}
 	.link {
 		color: var(--focus);

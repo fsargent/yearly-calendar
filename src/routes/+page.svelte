@@ -9,12 +9,14 @@
 	import type { PlannerAllDayEvent, PlannerCalendar } from '$lib/types/planner';
 
 	const STORAGE_SELECTED_CALENDARS_KEY = 'yearPlanner:selectedCalendars:v1';
-	const STORAGE_HIDE_BIRTHDAYS_KEY = 'yearPlanner:hideBirthdays:v1';
 	const STORAGE_EVENT_ROWS_KEY = 'yearPlanner:eventRowsPerMonth:v1';
 	const STORAGE_LAYOUT_MODE_KEY = 'yearPlanner:layoutMode:v1';
 	const STORAGE_THEME_MODE_KEY = 'yearPlanner:themeMode:v1';
 	const STORAGE_WEEK_START_KEY = 'yearPlanner:weekStart:v1';
+	const STORAGE_EVENT_EXCLUSIONS_KEY = 'yearPlanner:eventExclusions:v1';
 	const SESSION_AUTH_KEY = 'yearPlanner:authSession:v1';
+	// Migration keys (for cleanup)
+	const STORAGE_HIDE_BIRTHDAYS_KEY = 'yearPlanner:hideBirthdays:v1';
 
 	const VITE_GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
 	const VITE_GOOGLE_SCOPES = (import.meta.env.VITE_GOOGLE_SCOPES as string | undefined) ??
@@ -28,11 +30,11 @@
 	let accessToken: string | null = null;
 	let calendars: PlannerCalendar[] = [];
 	let selectedCalendarIds = new Set<string>();
-	let hideBirthdays = false;
 	let eventRowsPerMonth = 3;
 	let layoutMode: 'dates' | 'week' | 'vertical' = 'dates';
 	let themeMode: 'system' | 'light' | 'dark' = 'system';
 	let weekStart: 0 | 1 | 6 = 0;
+	let eventExclusions = '';
 	let syncing = false;
 
 	let allDayEventsRaw: PlannerAllDayEvent[] = [];
@@ -64,7 +66,6 @@
 	}
 
 	function loadPrefs(): void {
-		hideBirthdays = loadJson<boolean>(STORAGE_HIDE_BIRTHDAYS_KEY, false);
 		eventRowsPerMonth = loadJson<number>(STORAGE_EVENT_ROWS_KEY, 3);
 		if (!Number.isFinite(eventRowsPerMonth) || eventRowsPerMonth < 1) eventRowsPerMonth = 3;
 		if (eventRowsPerMonth > 10) eventRowsPerMonth = 10;
@@ -85,14 +86,22 @@
 		themeMode = tm === 'light' || tm === 'dark' ? tm : 'system';
 		const ws = loadJson<0 | 1 | 6>(STORAGE_WEEK_START_KEY, 0);
 		weekStart = ws === 1 || ws === 6 ? ws : 0;
+		eventExclusions = loadJson<string>(STORAGE_EVENT_EXCLUSIONS_KEY, '');
+		
+		// Migrate old hideBirthdays setting to eventExclusions
+		const hadHideBirthdays = loadJson<boolean>(STORAGE_HIDE_BIRTHDAYS_KEY, false);
+		if (hadHideBirthdays && !eventExclusions.toLowerCase().includes('birthday')) {
+			eventExclusions = eventExclusions ? `${eventExclusions}, birthday` : 'birthday';
+			localStorage.removeItem(STORAGE_HIDE_BIRTHDAYS_KEY);
+		}
 	}
 
 	function persistPrefs(): void {
-		saveJson<boolean>(STORAGE_HIDE_BIRTHDAYS_KEY, hideBirthdays);
 		saveJson<number>(STORAGE_EVENT_ROWS_KEY, eventRowsPerMonth);
 		saveJson<'dates' | 'week' | 'vertical'>(STORAGE_LAYOUT_MODE_KEY, layoutMode);
 		saveJson<'system' | 'light' | 'dark'>(STORAGE_THEME_MODE_KEY, themeMode);
 		saveJson<0 | 1 | 6>(STORAGE_WEEK_START_KEY, weekStart);
+		saveJson<string>(STORAGE_EVENT_EXCLUSIONS_KEY, eventExclusions);
 	}
 
 	function applyTheme(): void {
@@ -105,12 +114,58 @@
 	}
 
 	function applyPrefs(events: PlannerAllDayEvent[]): PlannerAllDayEvent[] {
-		const filtered = hideBirthdays ? events.filter((ev) => !isBirthdayTitle(ev.title)) : events;
+		// Apply exclusions filter
+		const exclusions = parseExclusions(eventExclusions);
+		const filtered = exclusions.length > 0
+			? events.filter((ev) => !matchesExclusion(ev.title, exclusions))
+			: events;
+
 		return dedupeAllDayEvents(filtered);
 	}
 
 	function isBirthdayTitle(title: string): boolean {
 		return /birthday/i.test(title);
+	}
+
+	/**
+	 * Parse a comma-separated exclusion string into an array of terms.
+	 * Supports both quoted ("home", "work day") and unquoted (home, work day) formats.
+	 */
+	function parseExclusions(input: string): string[] {
+		if (!input.trim()) return [];
+
+		const terms: string[] = [];
+		let current = '';
+		let inQuotes = false;
+
+		for (let i = 0; i < input.length; i++) {
+			const char = input[i];
+
+			if (char === '"') {
+				inQuotes = !inQuotes;
+			} else if (char === ',' && !inQuotes) {
+				const trimmed = current.trim();
+				if (trimmed) terms.push(trimmed);
+				current = '';
+			} else {
+				current += char;
+			}
+		}
+
+		// Add the last term
+		const trimmed = current.trim();
+		if (trimmed) terms.push(trimmed);
+
+		return terms;
+	}
+
+	/**
+	 * Check if a title matches any of the exclusion terms (case-insensitive substring match).
+	 */
+	function matchesExclusion(title: string, exclusions: string[]): boolean {
+		if (exclusions.length === 0) return false;
+		const lowerTitle = title.toLowerCase();
+		return exclusions.some((term) => lowerTitle.includes(term.toLowerCase()));
 	}
 
 	function canonicalTitleForKey(title: string): string {
@@ -369,7 +424,7 @@
 
 	<SettingsModal
 		open={settingsOpen}
-		{hideBirthdays}
+		{eventExclusions}
 		{eventRowsPerMonth}
 		{layoutMode}
 		{themeMode}
@@ -378,7 +433,7 @@
 		{selectedCalendarIds}
 		isSignedIn={status === 'signed_in'}
 		onChange={(next) => {
-			hideBirthdays = next.hideBirthdays;
+			eventExclusions = next.eventExclusions;
 			eventRowsPerMonth = next.eventRowsPerMonth;
 			layoutMode = next.layoutMode;
 			themeMode = next.themeMode;
