@@ -6,7 +6,14 @@
 	import { createTokenClient, isGoogleGisLoaded, revokeToken } from '$lib/google/gis';
 	import { listAllDayEventsForYear, listCalendars } from '$lib/google/calendarApi';
 	import { loadJson, saveJson } from '$lib/storage/localStorage';
-	import type { PlannerAllDayEvent, PlannerCalendar } from '$lib/types/planner';
+	import { localeWeekStart } from '$lib/date/locale';
+	import {
+		DEFAULT_PAST_DAYS_MODE,
+		isPastDaysMode,
+		type PastDaysMode,
+		type PlannerAllDayEvent,
+		type PlannerCalendar
+	} from '$lib/types/planner';
 
 	const STORAGE_SELECTED_CALENDARS_KEY = 'yearPlanner:selectedCalendars:v1';
 	const STORAGE_EVENT_ROWS_KEY = 'yearPlanner:eventRowsPerMonth:v1';
@@ -14,6 +21,7 @@
 	const STORAGE_THEME_MODE_KEY = 'yearPlanner:themeMode:v1';
 	const STORAGE_WEEK_START_KEY = 'yearPlanner:weekStart:v1';
 	const STORAGE_EVENT_EXCLUSIONS_KEY = 'yearPlanner:eventExclusions:v1';
+	const STORAGE_PAST_DAYS_KEY = 'yearPlanner:pastDays:v1';
 	const SESSION_AUTH_KEY = 'yearPlanner:authSession:v1';
 	// Migration keys (for cleanup)
 	const STORAGE_HIDE_BIRTHDAYS_KEY = 'yearPlanner:hideBirthdays:v1';
@@ -35,6 +43,7 @@
 	let themeMode: 'system' | 'light' | 'dark' = 'system';
 	let weekStart: 0 | 1 | 6 = 0;
 	let eventExclusions = '';
+	let pastDays: PastDaysMode = DEFAULT_PAST_DAYS_MODE;
 	let syncing = false;
 
 	let allDayEventsRaw: PlannerAllDayEvent[] = [];
@@ -84,10 +93,24 @@
 		
 		const tm = loadJson<'system' | 'light' | 'dark'>(STORAGE_THEME_MODE_KEY, 'system');
 		themeMode = tm === 'light' || tm === 'dark' ? tm : 'system';
-		const ws = loadJson<0 | 1 | 6>(STORAGE_WEEK_START_KEY, 0);
-		weekStart = ws === 1 || ws === 6 ? ws : 0;
-		eventExclusions = loadJson<string>(STORAGE_EVENT_EXCLUSIONS_KEY, '');
-		
+
+		// No saved week start: follow the browser locale (Monday in the UK, Sunday in the US).
+		if (localStorage.getItem(STORAGE_WEEK_START_KEY) === null) {
+			weekStart = localeWeekStart();
+		} else {
+			const ws = loadJson<0 | 1 | 6>(STORAGE_WEEK_START_KEY, 0);
+			weekStart = ws === 1 || ws === 6 ? ws : 0;
+		}
+
+		// Birthdays crowd the grid, so hide them until the user says otherwise.
+		eventExclusions =
+			localStorage.getItem(STORAGE_EVENT_EXCLUSIONS_KEY) === null
+				? 'birthday'
+				: loadJson<string>(STORAGE_EVENT_EXCLUSIONS_KEY, '');
+
+		const pd = loadJson<PastDaysMode>(STORAGE_PAST_DAYS_KEY, DEFAULT_PAST_DAYS_MODE);
+		pastDays = isPastDaysMode(pd) ? pd : DEFAULT_PAST_DAYS_MODE;
+
 		// Migrate old hideBirthdays setting to eventExclusions
 		const hadHideBirthdays = loadJson<boolean>(STORAGE_HIDE_BIRTHDAYS_KEY, false);
 		if (hadHideBirthdays && !eventExclusions.toLowerCase().includes('birthday')) {
@@ -102,6 +125,7 @@
 		saveJson<'system' | 'light' | 'dark'>(STORAGE_THEME_MODE_KEY, themeMode);
 		saveJson<0 | 1 | 6>(STORAGE_WEEK_START_KEY, weekStart);
 		saveJson<string>(STORAGE_EVENT_EXCLUSIONS_KEY, eventExclusions);
+		saveJson<PastDaysMode>(STORAGE_PAST_DAYS_KEY, pastDays);
 	}
 
 	function applyTheme(): void {
@@ -361,45 +385,59 @@
 </script>
 
 <main>
+	<header>
+		<div class="title">
+			<h1>Year Planner</h1>
+			<p class="sub">Year Planner displays your Google Calendar all-day events (like holidays, vacations, birthdays, and other full-day reminders) in a single yearly grid view. This helps you see your schedule at a glance and plan ahead.</p>
+			<p class="meta">
+				<a href="about">About</a> &bull; <a href="privacy">Privacy Policy</a> &bull; <a href="terms">Terms</a>
+			</p>
+		</div>
+
+		<div class="controls">
+			<label class="year">
+				<span>Year</span>
+				<input
+					type="number"
+					min="1970"
+					max="2100"
+					bind:value={year}
+					onchange={() => status === 'signed_in' && void refreshCalendarsAndEvents()}
+				/>
+			</label>
+
+			<label class="layout">
+				<span>Layout</span>
+				<select
+					bind:value={layoutMode}
+					onchange={() => {
+						persistPrefs();
+					}}
+				>
+					<option value="dates">Monthly - 1st Aligned</option>
+					<option value="week">Monthly - Week Aligned</option>
+					<option value="vertical">Weekly</option>
+				</select>
+			</label>
+
+			<button class="settings" onclick={() => (settingsOpen = true)}>Settings</button>
+			{#if status === 'signed_in'}
+				<button onclick={() => void refreshCalendarsAndEvents()} disabled={syncing}>
+					{syncing ? 'Syncing…' : 'Refresh'}
+				</button>
+			{:else}
+				<button onclick={signIn}>Sign in with Google</button>
+			{/if}
+		</div>
+	</header>
+
+	{#if status === 'error'}
+		<div class="error">
+			<strong>Error:</strong> {errorMessage}
+		</div>
+	{/if}
+
 	<div class="scroll-container">
-		<header>
-			<div class="title">
-				<h1>Year Planner</h1>
-				<p class="sub">Year Planner displays your Google Calendar all-day events (like holidays, vacations, birthdays, and other full-day reminders) in a single yearly grid view. This helps you see your schedule at a glance and plan ahead.</p>
-				<p class="meta">
-					<a href="about">About</a> &bull; <a href="privacy">Privacy Policy</a> &bull; <a href="terms">Terms</a>
-				</p>
-			</div>
-
-			<div class="controls">
-				<label class="year">
-					<span>Year</span>
-					<input
-						type="number"
-						min="1970"
-						max="2100"
-						bind:value={year}
-						onchange={() => status === 'signed_in' && void refreshCalendarsAndEvents()}
-					/>
-				</label>
-
-				<button class="settings" onclick={() => (settingsOpen = true)}>Settings</button>
-				{#if status === 'signed_in'}
-					<button onclick={() => void refreshCalendarsAndEvents()} disabled={syncing}>
-						{syncing ? 'Syncing…' : 'Refresh'}
-					</button>
-				{:else}
-					<button onclick={signIn}>Sign in with Google</button>
-				{/if}
-			</div>
-		</header>
-
-		{#if status === 'error'}
-			<div class="error">
-				<strong>Error:</strong> {errorMessage}
-			</div>
-		{/if}
-
 		<section class="grid">
 			<YearGrid
 				{year}
@@ -407,6 +445,7 @@
 				fixedEventRows={eventRowsPerMonth}
 				layoutMode={layoutMode}
 				{weekStart}
+				{pastDays}
 				onSelectEvent={(ev) => {
 					selectedEvent = ev;
 				}}
@@ -429,6 +468,7 @@
 		{layoutMode}
 		{themeMode}
 		{weekStart}
+		{pastDays}
 		{calendars}
 		{selectedCalendarIds}
 		isSignedIn={status === 'signed_in'}
@@ -438,6 +478,7 @@
 			layoutMode = next.layoutMode;
 			themeMode = next.themeMode;
 			weekStart = next.weekStart;
+			pastDays = next.pastDays;
 			persistPrefs();
 			applyTheme();
 			// No refetch needed: apply settings to the last fetched events.
@@ -464,20 +505,45 @@
 		flex-direction: column;
 		overflow: hidden;
 	}
+	/* Stays put while the grid scrolls, so Settings is always in reach. */
 	header {
+		flex: 0 0 auto;
 		display: flex;
 		align-items: flex-end;
 		justify-content: space-between;
 		gap: 12px;
-		margin-bottom: 10px;
-		padding-top: 12px;
+		padding: 12px 14px 10px;
+		background: var(--bg);
+		border-bottom: 1px solid var(--border);
 	}
 	.scroll-container {
 		flex: 1;
+		min-height: 0;
 		overflow: auto;
-		padding: 0 14px 12px;
+		padding: 10px 14px 12px;
 		display: flex;
 		flex-direction: column;
+	}
+	/* A fixed bar has to stay slim, so drop the blurb on narrow screens. */
+	@media (max-width: 700px) {
+		header {
+			flex-direction: column;
+			align-items: stretch;
+			gap: 8px;
+			padding: 10px 12px 8px;
+		}
+		.title h1 {
+			font-size: 17px;
+		}
+		.sub {
+			display: none;
+		}
+		.meta {
+			margin-top: 4px;
+		}
+		.scroll-container {
+			padding: 8px 12px 12px;
+		}
 	}
 	.title h1 {
 		margin: 0;
@@ -525,6 +591,23 @@
 		color: var(--text);
 		border-radius: 6px;
 	}
+	.layout {
+		display: inline-flex;
+		gap: 6px;
+		align-items: center;
+		font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+		font-size: 13px;
+		color: var(--text);
+	}
+	.layout select {
+		padding: 6px 8px;
+		border: 1px solid var(--border);
+		background: var(--panel);
+		color: var(--text);
+		border-radius: 6px;
+		font-family: inherit;
+		font-size: 13px;
+	}
 	button {
 		padding: 7px 10px;
 		border-radius: 8px;
@@ -545,7 +628,7 @@
 		cursor: not-allowed;
 	}
 	.error {
-		margin: 10px 0;
+		margin: 10px 14px 0;
 		padding: 10px 12px;
 		border: 1px solid #fca5a5;
 		background: #fef2f2;

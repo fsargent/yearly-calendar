@@ -1,5 +1,13 @@
 <script lang="ts">
-	import { addDaysIso, daysInMonth, formatIsoDate, isoToDayOfWeek, parseIsoDate } from '$lib/date/iso';
+	import {
+		addDaysIso,
+		daysBetweenIso,
+		daysInMonth,
+		formatIsoDate,
+		isoToDayOfWeek,
+		parseIsoDate,
+		todayIso
+	} from '$lib/date/iso';
 	import {
 		barBackground,
 		clampEventToMonth,
@@ -11,7 +19,7 @@
 		lanePack,
 		type MonthBar
 	} from '$lib/logic/grid';
-	import type { PlannerAllDayEvent } from '$lib/types/planner';
+	import type { PastDaysMode, PlannerAllDayEvent } from '$lib/types/planner';
 	import YearGridHeader from './year-grid/YearGridHeader.svelte';
 	import YearGridTooltip from './year-grid/YearGridTooltip.svelte';
 
@@ -25,9 +33,18 @@
 		fixedEventRows?: number;
 		layoutMode?: 'dates' | 'week' | 'vertical';
 		weekStart?: 0 | 1 | 6;
+		pastDays?: PastDaysMode;
 	};
 
-	let { year, allDayEvents, onSelectEvent, fixedEventRows, layoutMode, weekStart }: Props = $props();
+	let {
+		year,
+		allDayEvents,
+		onSelectEvent,
+		fixedEventRows,
+		layoutMode,
+		weekStart,
+		pastDays
+	}: Props = $props();
 	const mode = () => (layoutMode === 'week' ? 'week' : layoutMode === 'vertical' ? 'vertical' : 'dates');
 	const colCount = () => (mode() === 'week' ? 42 : mode() === 'vertical' ? 7 : 31);
 	const cellMin = () => (mode() === 'week' ? 20 : mode() === 'vertical' ? 32 : 22);
@@ -43,7 +60,87 @@
 
 	let hover = $state<HoverInfo | null>(null);
 	// 0=Sun, 1=Mon, ..., 6=Sat
-	let weekStartDay = $derived(weekStart ?? 0); 
+	let weekStartDay = $derived(weekStart ?? 0);
+
+	const pastMode = () => pastDays ?? 'dim';
+
+	// Today can change while the tab stays open, so re-check on a timer.
+	let today = $state(todayIso());
+	$effect(() => {
+		const timer = window.setInterval(() => {
+			const next = todayIso();
+			if (next !== today) today = next;
+		}, 60_000);
+		return () => window.clearInterval(timer);
+	});
+
+	const hideMode = () => pastMode() === 'hide';
+
+	function isPastDay(iso: string): boolean {
+		return iso !== '' && iso < today;
+	}
+
+	/**
+	 * Events to draw. "Hide" drops events that are over and trims the part of an
+	 * ongoing event that already happened, so nothing is left in the past.
+	 */
+	function visibleEvents(): PlannerAllDayEvent[] {
+		if (!hideMode()) return allDayEvents;
+		return allDayEvents
+			.filter((ev) => ev.endDateExclusive > today)
+			.map((ev) => (ev.startDate < today ? { ...ev, startDate: today } : ev));
+	}
+
+	/** A month row with no day left to show, so "hide" drops the whole row. */
+	function monthFullyPast(month1to12: number): boolean {
+		if (!hideMode()) return false;
+		return formatIsoDate(year, month1to12, daysInMonth(year, month1to12)) < today;
+	}
+
+	function weekFullyPast(week: WeekRow): boolean {
+		if (!hideMode()) return false;
+		return week.cells[6].iso < today;
+	}
+
+	/**
+	 * Grid columns covered by days that are already over, as [start, endExclusive].
+	 * Returns null when the month has no past day.
+	 */
+	function pastSpanForMonth(month1to12: number): [number, number] | null {
+		if (pastMode() !== 'dim') return null;
+		const dim = daysInMonth(year, month1to12);
+		const firstIso = formatIsoDate(year, month1to12, 1);
+		const pastCount = Math.min(dim, Math.max(0, daysBetweenIso(firstIso, today)));
+		if (pastCount === 0) return null;
+
+		const firstDow = mode() === 'week' ? isoToDayOfWeek(firstIso) : 0;
+		const start = 2 + firstDow;
+		return [start, start + pastCount];
+	}
+
+	function pastSpanForWeek(week: WeekRow): [number, number] | null {
+		if (pastMode() !== 'dim') return null;
+		const pastCount = Math.min(7, Math.max(0, daysBetweenIso(week.startDate, today)));
+		if (pastCount === 0) return null;
+		return [2, 2 + pastCount];
+	}
+
+	/** Grid columns of today, as [start, endExclusive]. Null when today is off this row. */
+	function todaySpanForMonth(month1to12: number): [number, number] | null {
+		const firstIso = formatIsoDate(year, month1to12, 1);
+		const offset = daysBetweenIso(firstIso, today);
+		if (offset < 0 || offset >= daysInMonth(year, month1to12)) return null;
+
+		const firstDow = mode() === 'week' ? isoToDayOfWeek(firstIso) : 0;
+		const start = 2 + firstDow + offset;
+		return [start, start + 1];
+	}
+
+	function todaySpanForWeek(week: WeekRow): [number, number] | null {
+		const offset = daysBetweenIso(week.startDate, today);
+		if (offset < 0 || offset > 6) return null;
+		return [2 + offset, 3 + offset];
+	}
 
 	function buildMonthCells(month1to12: number): MonthDayCell[] {
 		const dim = daysInMonth(year, month1to12);
@@ -102,7 +199,7 @@
 		const firstDow =
 			mode() === 'week' ? isoToDayOfWeek(formatIsoDate(year, month1to12, 1)) : 0;
 
-		const candidates = allDayEvents
+		const candidates = visibleEvents()
 			.filter((ev) => intersectsMonth(ev, year, month1to12))
 			.map((ev) => {
 				const clamped = clampEventToMonth(ev, year, month1to12);
@@ -142,7 +239,7 @@
 	}
 
 	function buildWeekBars(week: WeekRow): { bars: MonthBar[]; laneCount: number; hiddenCount: number } {
-		const candidates = allDayEvents
+		const candidates = visibleEvents()
 			.filter((ev) => intersectsWeek(ev, week.startDate))
 			.map((ev) => {
 				const clamped = clampEventToWeek(ev, week.startDate);
@@ -206,8 +303,10 @@
 	<YearGridHeader mode={mode()} weekStartDay={weekStartDay} />
 
 	{#if mode() === 'vertical'}
-		{#each buildYearWeeks() as week}
+		{#each buildYearWeeks().filter((w) => !weekFullyPast(w)) as week (week.startDate)}
 			{@const wb = buildWeekBars(week)}
+			{@const weekPast = pastSpanForWeek(week)}
+			{@const weekToday = todaySpanForWeek(week)}
 			<!-- Determine if this week starts a new month to show a label? Or just show week range? -->
 			<!-- For simplicity, let's just show Week Number, maybe month name if it's the first week of month -->
 			<div class="monthRow weekRow" style={`--lane-count:${Math.max(1, wb.laneCount)};`}>
@@ -222,13 +321,40 @@
 				{#each week.cells as c, idx}
 					{@const isCurMonth = c.iso.startsWith(year + '-')}
 					{@const cellDow = (idx + weekStartDay) % 7}
-					<div class="dayCell" class:weekend={isWeekend(cellDow)} title={c.iso} style={`opacity: ${isCurMonth ? 1 : 0.4}`}>
-						<span class="d">{c.day}</span>
-						{#if c.day === 1 || (idx === 0 && week.cells[6].month !== c.month)}
-							<span class="mLabel">{monthLabels[c.month - 1]}</span>
+					{@const blank = hideMode() && isPastDay(c.iso)}
+					<div
+						class="dayCell"
+						class:weekend={!blank && isWeekend(cellDow)}
+						class:outside={!blank && !isCurMonth}
+						class:blank
+						class:today={c.iso === today}
+						style={`grid-column:${2 + idx};`}
+						title={blank ? undefined : c.iso}
+					>
+						{#if !blank}
+							<span class="d">{c.day}</span>
+							{#if c.day === 1 || (idx === 0 && week.cells[6].month !== c.month)}
+								<span class="mLabel">{monthLabels[c.month - 1]}</span>
+							{/if}
 						{/if}
 					</div>
 				{/each}
+
+				{#if weekPast}
+					<div
+						class="pastShade"
+						style={`grid-column:${weekPast[0]} / ${weekPast[1]};`}
+						aria-hidden="true"
+					></div>
+				{/if}
+
+				{#if weekToday}
+					<div
+						class="todayCol"
+						style={`grid-column:${weekToday[0]} / ${weekToday[1]};`}
+						aria-hidden="true"
+					></div>
+				{/if}
 
 				{#each wb.bars as b (b.id)}
 					<button
@@ -247,9 +373,11 @@
 			</div>
 		{/each}
 	{:else}
-		{#each Array.from({ length: 12 }, (_, i) => i + 1) as month}
+		{#each Array.from({ length: 12 }, (_, i) => i + 1).filter((m) => !monthFullyPast(m)) as month (month)}
 			{@const cells = buildMonthCells(month)}
 			{@const mb = buildMonthBars(month)}
+			{@const monthPast = pastSpanForMonth(month)}
+			{@const monthToday = todaySpanForMonth(month)}
 			<div class="monthRow" style={`--lane-count:${Math.max(1, mb.laneCount)};`}>
 				<div class="monthLabel">
 					<span>{monthLabels[month - 1]}</span>
@@ -260,18 +388,44 @@
 				<div class="monthGutter"></div>
 
 				{#each cells as c (month + ':' + c.idx)}
+					{@const blank = hideMode() && isPastDay(c.iso)}
 					{#if c.valid}
-						<div class="dayCell" class:weekend={isWeekend(c.dow)} title={c.iso}>
-							{#if mode() === 'week'}
+						<div
+							class="dayCell"
+							class:weekend={!blank && isWeekend(c.dow)}
+							class:blank
+							class:today={c.iso === today}
+							style={`grid-column:${2 + c.idx};`}
+							title={blank ? undefined : c.iso}
+						>
+							{#if blank}
+								<!-- day already over, hidden by preference -->
+							{:else if mode() === 'week'}
 								<span class="d">{c.day}</span>
 							{:else}
 								<span class="w">{['S', 'M', 'T', 'W', 'T', 'F', 'S'][c.dow]}</span>
 							{/if}
 						</div>
 					{:else}
-						<div class="dayCell empty"></div>
+						<div class="dayCell empty" style={`grid-column:${2 + c.idx};`}></div>
 					{/if}
 				{/each}
+
+				{#if monthPast}
+					<div
+						class="pastShade"
+						style={`grid-column:${monthPast[0]} / ${monthPast[1]};`}
+						aria-hidden="true"
+					></div>
+				{/if}
+
+				{#if monthToday}
+					<div
+						class="todayCol"
+						style={`grid-column:${monthToday[0]} / ${monthToday[1]};`}
+						aria-hidden="true"
+					></div>
+				{/if}
 
 				{#each mb.bars as b (b.id)}
 					<button
@@ -370,26 +524,46 @@
 	.dayCell.empty {
 		background: transparent;
 	}
-	.mLabel {
-		position: absolute;
-		top: -10px;
-		left: 50%;
-		transform: translateX(-50%);
-		font-size: 10px;
-		background: var(--focus);
-		color: var(--bg);
-		padding: 2px 6px;
-		border-radius: 99px;
+	/* Days already over, hidden by preference: nothing but the grid line. */
+	.dayCell.blank {
+		background: transparent;
+		color: transparent;
+	}
+	/* Vertical mode shows days from the neighbouring year in a muted state. */
+	.dayCell.outside {
+		opacity: 0.4;
+	}
+
+	/* Days already over: a veil over the whole month row, drawn above the bars. */
+	.pastShade {
+		grid-row: 1 / -1;
+		align-self: stretch;
+		z-index: 2;
+		pointer-events: none;
+		background: var(--past-veil);
+		border-right: 1px solid var(--past-edge);
+	}
+
+	/* Today: an outlined column across the whole month row. */
+	.todayCol {
+		grid-row: 1 / -1;
+		align-self: stretch;
+		z-index: 3;
+		pointer-events: none;
+		border: 2px solid var(--today);
+		border-radius: 5px;
+		box-shadow: 0 0 0 1px var(--bg);
+	}
+	.dayCell.today {
+		background: color-mix(in srgb, var(--today) 22%, transparent);
+	}
+	.dayCell.today .d,
+	.dayCell.today .w {
+		color: var(--today);
 		font-weight: 700;
-		line-height: 1;
-		z-index: 5;
-		box-shadow: 0 0 0 3px var(--bg);
 	}
-	.w {
-		color: var(--muted);
-	}
-	.d {
-		color: var(--text);
+	.dayCell.today.outside {
+		opacity: 1;
 	}
 
 	.bar {

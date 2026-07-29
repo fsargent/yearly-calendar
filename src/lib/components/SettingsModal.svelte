@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import type { PlannerCalendar } from '$lib/types/planner';
+	import type { PastDaysMode, PlannerCalendar } from '$lib/types/planner';
 
 	type LayoutMode = 'dates' | 'week' | 'vertical';
 	type ThemeMode = 'system' | 'light' | 'dark';
@@ -13,6 +13,7 @@
 		layoutMode: LayoutMode;
 		themeMode: ThemeMode;
 		weekStart: WeekStartMode;
+		pastDays: PastDaysMode;
 		calendars: PlannerCalendar[];
 		selectedCalendarIds: Set<string>;
 		isSignedIn: boolean;
@@ -22,6 +23,7 @@
 			layoutMode: LayoutMode;
 			themeMode: ThemeMode;
 			weekStart: WeekStartMode;
+			pastDays: PastDaysMode;
 		}) => void;
 		onToggleCalendar: (id: string) => void;
 		onSignOut: () => Promise<void>;
@@ -35,6 +37,7 @@
 		layoutMode,
 		themeMode,
 		weekStart,
+		pastDays,
 		calendars,
 		selectedCalendarIds,
 		isSignedIn,
@@ -69,6 +72,7 @@
 			layoutMode: LayoutMode;
 			themeMode: ThemeMode;
 			weekStart: WeekStartMode;
+			pastDays: PastDaysMode;
 		}>
 	): void {
 		onChange({
@@ -76,7 +80,8 @@
 			eventRowsPerMonth: partial.eventRowsPerMonth ?? eventRowsPerMonth,
 			layoutMode: partial.layoutMode ?? layoutMode,
 			themeMode: partial.themeMode ?? themeMode,
-			weekStart: partial.weekStart ?? weekStart
+			weekStart: partial.weekStart ?? weekStart,
+			pastDays: partial.pastDays ?? pastDays
 		});
 	}
 </script>
@@ -148,34 +153,34 @@
 				</div>
 
 				<div class="row">
-					<div class="label">Layout</div>
+					<div class="label">Days already over</div>
 					<div class="choices">
 						<label class="radio">
 							<input
 								type="radio"
-								name="layout"
-								checked={layoutMode === 'dates'}
-								onchange={() => update({ layoutMode: 'dates' })}
+								name="pastDays"
+								checked={pastDays === 'dim'}
+								onchange={() => update({ pastDays: 'dim' })}
 							/>
-							<span>1st aligned</span>
+							<span>Grey out</span>
 						</label>
 						<label class="radio">
 							<input
 								type="radio"
-								name="layout"
-								checked={layoutMode === 'week'}
-								onchange={() => update({ layoutMode: 'week' })}
+								name="pastDays"
+								checked={pastDays === 'hide'}
+								onchange={() => update({ pastDays: 'hide' })}
 							/>
-							<span>Week aligned</span>
+							<span>Hide</span>
 						</label>
 						<label class="radio">
 							<input
 								type="radio"
-								name="layout"
-								checked={layoutMode === 'vertical'}
-								onchange={() => update({ layoutMode: 'vertical' })}
+								name="pastDays"
+								checked={pastDays === 'normal'}
+								onchange={() => update({ pastDays: 'normal' })}
 							/>
-							<span>Vertical</span>
+							<span>Show as normal</span>
 						</label>
 					</div>
 				</div>
@@ -338,18 +343,6 @@
 		.label {
 			margin-bottom: 4px;
 		}
-	}
-	.pref {
-		grid-column: 1 / -1;
-		display: inline-flex;
-		gap: 10px;
-		align-items: center;
-		font-size: 13px;
-		min-width: 0;
-	}
-	.pref span {
-		flex-shrink: 1;
-		min-width: 0;
 	}
 	.label {
 		font-size: 12px;

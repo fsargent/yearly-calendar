@@ -51,6 +51,9 @@
 		--overlay: rgba(0, 0, 0, 0.35);
 		--shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
 		--focus: #2563eb;
+		--past-veil: rgba(224, 226, 232, 0.8);
+		--past-edge: rgba(0, 0, 0, 0.22);
+		--today: #d97706;
 
 		--btn-bg: #111111;
 		--btn-text: #ffffff;
@@ -73,6 +76,9 @@
 			--overlay: rgba(0, 0, 0, 0.55);
 			--shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
 			--focus: #60a5fa;
+			--past-veil: rgba(30, 38, 52, 0.8);
+			--past-edge: rgba(255, 255, 255, 0.16);
+			--today: #fbbf24;
 
 			--btn-bg: #e7eaf0;
 			--btn-text: #0b0f17;
@@ -95,6 +101,9 @@
 		--overlay: rgba(0, 0, 0, 0.55);
 		--shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
 		--focus: #60a5fa;
+		--past-veil: rgba(30, 38, 52, 0.8);
+		--past-edge: rgba(255, 255, 255, 0.16);
+		--today: #fbbf24;
 
 		--btn-bg: #e7eaf0;
 		--btn-text: #0b0f17;

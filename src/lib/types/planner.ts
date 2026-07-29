@@ -28,6 +28,20 @@ export type PlannerAllDayEvent = {
   htmlLink?: string;
 };
 
+/** How to render days that are already over. */
+export type PastDaysMode = "normal" | "dim" | "hide";
+
+export const PAST_DAYS_MODES: PastDaysMode[] = ["normal", "dim", "hide"];
+
+export const DEFAULT_PAST_DAYS_MODE: PastDaysMode = "dim";
+
+export function isPastDaysMode(value: unknown): value is PastDaysMode {
+  return (
+    typeof value === "string" &&
+    (PAST_DAYS_MODES as string[]).includes(value)
+  );
+}
+
 export type PlannerDayEvent = {
   id: string;
   calendarId: CalendarId;
